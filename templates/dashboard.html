@@ -1024,41 +1024,58 @@
     return {
       // ── Profile state ─────────────────────────────────────
       profile: {
-        family_name:                 'My Family',
-        current_age:                 30,
-        retirement_age:              50,
-        life_expectancy:             85,
-        annual_income:               3000000,
-        savings_rate:                30,
-        monthly_expenses_retirement: 100000,
+        family_name:                 'The Sharma Family — Holistic Wealth Plan',
+        current_age:                 33,
+        retirement_age:              55,
+        life_expectancy:             88,
+        annual_income:               3600000,
+        savings_rate:                35,
+        monthly_expenses_retirement: 120000,
         currency:                    'INR',
       },
 
-      // ── Assets ────────────────────────────────────────────
+      // ── Assets (Multi-Asset Class Portfolio across every available asset class) ──
       assets: [
-        { id: 'a1', name: 'Equity Mutual Funds',          asset_class: 'equity', value: 5000000, return_rate: 11 },
-        { id: 'a2', name: 'Public Provident Fund (PPF)',  asset_class: 'debt',   value: 5000000, return_rate: 7  },
+        { id: 'a1', name: 'Equity Mutual & Index Funds',     asset_class: 'equity',      value: 6000000, return_rate: 12.0 },
+        { id: 'a2', name: 'Public Provident Fund (PPF/EPF)', asset_class: 'debt',        value: 4000000, return_rate: 7.5  },
+        { id: 'a3', name: 'Residential Real Estate Equity',  asset_class: 'real_estate', value: 7500000, return_rate: 6.5  },
+        { id: 'a4', name: 'Sovereign Gold Bonds (SGB)',      asset_class: 'gold',        value: 1000000, return_rate: 8.0  },
+        { id: 'a5', name: 'Emergency Liquid Fund',           asset_class: 'liquid',      value: 500000,  return_rate: 6.0  },
+        { id: 'a6', name: 'Angel Investments / REITs',       asset_class: 'other',       value: 500000,  return_rate: 10.0 },
+        { id: 'a7', name: 'Blue-Chip Crypto Portfolio',      asset_class: 'crypto',      value: 500000,  return_rate: 15.0 },
       ],
 
-      // ── Goals (pre-seeded defaults) ───────────────────────
+      // ── Goals (Lump-sum and Recurring goals across Critical, Need & Want) ───────
       goals: [
         {
-          id: 'g1', name: 'Kid Higher Education Fund',
-          priority: 'critical', present_value: 1000000,
-          target_year: 2045, inflation_rate: 8,
+          id: 'g1', name: 'Child Global Degree & Education Fund',
+          priority: 'critical', present_value: 2500000,
+          target_year: currentYear + 17, inflation_rate: 8.5,
           goal_type: 'lump_sum', recurring_frequency: null,
         },
         {
-          id: 'g2', name: 'House Renovation Fund',
-          priority: 'need', present_value: 2000000,
-          target_year: 2040, inflation_rate: 7,
+          id: 'g2', name: 'Annual Family International Vacation',
+          priority: 'want', present_value: 350000,
+          target_year: currentYear + 1, inflation_rate: 6.0,
+          goal_type: 'recurring', recurring_frequency: 2,
+        },
+        {
+          id: 'g3', name: 'Dream Home Upgrade & Renovation',
+          priority: 'need', present_value: 3000000,
+          target_year: currentYear + 12, inflation_rate: 7.0,
           goal_type: 'lump_sum', recurring_frequency: null,
         },
         {
-          id: 'g3', name: 'Family Travel Fund',
-          priority: 'want', present_value: 500000,
-          target_year: 2035, inflation_rate: 6,
+          id: 'g4', name: 'Child Wedding & Celebration Fund',
+          priority: 'need', present_value: 1800000,
+          target_year: currentYear + 22, inflation_rate: 7.5,
           goal_type: 'lump_sum', recurring_frequency: null,
+        },
+        {
+          id: 'g5', name: 'Luxury EV / Vehicle Replacement',
+          priority: 'want', present_value: 1500000,
+          target_year: currentYear + 4, inflation_rate: 5.0,
+          goal_type: 'recurring', recurring_frequency: 6,
         },
       ],
 
@@ -1071,26 +1088,40 @@
       _nextSipId:       200,
       _nextInsuranceId: 300,
 
-      // ── Insurance Plans (Guaranteed Income / SWP-equivalent) ────────────────────
+      // ── Insurance Plans (Guaranteed Income & Child Education Annuity) ───────────
       insurance_plans: [
         {
           id:                'ip1',
-          name:              'Guaranteed Income Plan',
+          name:              'Guaranteed Pension & Bonus Plan',
+          annual_premium:    150000,
+          premium_end_year:  currentYear + 10,
+          income_start_year: currentYear + 22,
+          annual_income:     300000,
+          income_end_year:   currentYear + 45,
+          terminal_bonus:    2500000,
+          death_benefit:     5000000,
+          accidental_rider:  200000,
+        },
+        {
+          id:                'ip2',
+          name:              'Child Education Guaranteed Payout Plan',
           annual_premium:    100000,
-          premium_end_year:  2035,
-          income_start_year: 2038,
-          annual_income:     150000,
-          income_end_year:   2055,
-          terminal_bonus:    1000000,
-          death_benefit:     2500000,
+          premium_end_year:  currentYear + 7,
+          income_start_year: currentYear + 15,
+          annual_income:     400000,
+          income_end_year:   currentYear + 18,
+          terminal_bonus:    800000,
+          death_benefit:     2000000,
           accidental_rider:  100000,
         },
       ],
 
-      // ── SIP / Regular Investments ─────────────────────────
+      // ── SIP / Regular Investments across multiple asset classes with Step-up ────
       sips: [
-        { id: 's1', name: 'Equity MF SIP — Retirement Engine', asset_class: 'equity', monthly_amount: 50000, step_up_pct: 5, return_rate: 12, start_year: currentYear, end_year: 2046 },
-        { id: 's2', name: 'PPF / Debt Investment SIP',         asset_class: 'debt',   monthly_amount: 25000, step_up_pct: 0, return_rate: 8,  start_year: currentYear, end_year: 2046 },
+        { id: 's1', name: 'Core Equity MF Step-Up SIP (Retirement Engine)', asset_class: 'equity', monthly_amount: 55000, step_up_pct: 8,  return_rate: 12.5, start_year: currentYear, end_year: currentYear + 22 },
+        { id: 's2', name: 'Voluntary Provident Fund & Debt SIP',            asset_class: 'debt',   monthly_amount: 25000, step_up_pct: 5,  return_rate: 7.8,  start_year: currentYear, end_year: currentYear + 22 },
+        { id: 's3', name: 'Gold ETF & Digital Gold Accumulation',           asset_class: 'gold',   monthly_amount: 10000, step_up_pct: 0,  return_rate: 8.5,  start_year: currentYear, end_year: currentYear + 12 },
+        { id: 's4', name: 'High-Growth Tech & Smallcap Index SIP',          asset_class: 'equity', monthly_amount: 10000, step_up_pct: 10, return_rate: 14.0, start_year: currentYear, end_year: currentYear + 15 },
       ],
 
       // ── Computed: blended return (weighted avg) ───────────
