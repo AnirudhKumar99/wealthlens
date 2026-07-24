@@ -108,34 +108,35 @@ def build_outflow_schedule(goals: list, base_year: int, end_year: int) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _health_score(fi_ratio: float, savings_rate_pct: float, blended_r: float,
-                  exhausted: bool, goal_details: list) -> int:
+                  exhausted: bool, goal_details: list,
+                  debt_to_asset_ratio: float = 0.0) -> int:
     score = 0
 
-    # FI ratio  (0-30)
+    # FI ratio  (0-25)
     if fi_ratio >= 1.5:
-        score += 30
-    elif fi_ratio >= 1.0:
-        score += 20
-    elif fi_ratio >= 0.7:
-        score += 10
-
-    # Savings rate (0-25)
-    if savings_rate_pct >= 30:
         score += 25
-    elif savings_rate_pct >= 20:
-        score += 15
-    elif savings_rate_pct >= 10:
-        score += 5
+    elif fi_ratio >= 1.0:
+        score += 17
+    elif fi_ratio >= 0.7:
+        score += 8
 
-    # Blended return (0-20)
-    if blended_r >= 0.12:
+    # Savings rate (0-20)
+    if savings_rate_pct >= 30:
         score += 20
-    elif blended_r >= 0.10:
+    elif savings_rate_pct >= 20:
+        score += 12
+    elif savings_rate_pct >= 10:
+        score += 4
+
+    # Blended return (0-15)
+    if blended_r >= 0.12:
         score += 15
+    elif blended_r >= 0.10:
+        score += 11
     elif blended_r >= 0.08:
-        score += 10
+        score += 7
     elif blended_r >= 0.06:
-        score += 5
+        score += 3
 
     # Portfolio longevity (0-15)
     if not exhausted:
@@ -148,6 +149,17 @@ def _health_score(fi_ratio: float, savings_rate_pct: float, blended_r: float,
         score += int(10 * funded / len(critical))
     else:
         score += 10
+
+    # Debt health (0-15) — lower debt-to-asset ratio is better
+    if debt_to_asset_ratio <= 0:
+        score += 15
+    elif debt_to_asset_ratio <= 0.15:
+        score += 12
+    elif debt_to_asset_ratio <= 0.30:
+        score += 8
+    elif debt_to_asset_ratio <= 0.50:
+        score += 4
+    # else: 0 — heavy debt burden
 
     return min(100, score)
 
@@ -200,11 +212,133 @@ def _compute_sip_annual(sips: list, year: int, base_year: int) -> float:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Loan Helper
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _compute_loan_outflow_annual(loans: list, year: int, base_year: int) -> float:
+    """
+    Computes total annual EMI outflows for all active loans in the given year.
+    An EMI is paid every month until `emis_paid + (months passed)` reaches `total_months`.
+    """
+    total = 0.0
+    for loan in loans:
+        principal = float(loan.get("principal") or 0)
+        roi = float(loan.get("roi_pct") or 8.5)
+        total_months = int(loan.get("total_months") or 240)
+        emis_paid = int(loan.get("emis_paid") or 0)
+
+        if principal <= 0 or total_months <= 0 or emis_paid >= total_months:
+            continue
+
+        emi = calculate_emi(principal, roi, total_months / 12.0)
+
+        # Calculate how many months of this loan fall into the current simulation year.
+        start_month_idx = (year - base_year) * 12
+        end_month_idx = start_month_idx + 12
+
+        active_months = 0
+        for m in range(start_month_idx, end_month_idx):
+            if emis_paid + m < total_months:
+                active_months += 1
+
+        total += emi * active_months
+
+    return total
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Loan Detail Builder
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _build_loan_details(loans: list, base_year: int) -> list:
+    """
+    Compute detailed amortisation metrics for each loan:
+    outstanding principal, interest breakdown, completion timeline.
+    """
+    details = []
+    for loan in loans:
+        principal    = float(loan.get("principal") or 0)
+        roi          = float(loan.get("roi_pct") or 8.5)
+        total_months = int(loan.get("total_months") or 240)
+        emis_paid    = int(loan.get("emis_paid") or 0)
+
+        if principal <= 0 or total_months <= 0 or emis_paid >= total_months:
+            continue
+
+        r_m              = roi / 100.0 / 12.0
+        remaining_months = max(0, total_months - emis_paid)
+
+        # Monthly EMI
+        if r_m > 0:
+            emi = principal * r_m * (1 + r_m) ** total_months / (
+                (1 + r_m) ** total_months - 1
+            )
+        else:
+            emi = principal / total_months if total_months > 0 else 0.0
+
+        # Outstanding principal after `emis_paid` payments
+        if r_m > 0 and remaining_months > 0:
+            outstanding = principal * (
+                (1 + r_m) ** total_months - (1 + r_m) ** emis_paid
+            ) / ((1 + r_m) ** total_months - 1)
+        elif remaining_months > 0:
+            outstanding = principal - (emi * emis_paid)
+        else:
+            outstanding = 0.0
+        outstanding = max(0.0, outstanding)
+
+        # Total cost of the loan
+        total_payment = emi * total_months
+        total_interest = total_payment - principal
+
+        # Paid so far
+        amount_paid    = emi * emis_paid
+        principal_paid = principal - outstanding
+        interest_paid  = amount_paid - principal_paid
+
+        # Remaining
+        remaining_payment  = emi * remaining_months
+        remaining_interest = max(0.0, total_interest - interest_paid)
+
+        # Completion timeline
+        completion_year = base_year + int(
+            remaining_months / 12
+        ) + (1 if remaining_months % 12 > 0 else 0)
+
+        details.append({
+            "id":                    loan.get("id", ""),
+            "name":                  loan.get("name", ""),
+            "loan_type":             loan.get("loan_type", "other"),
+            "original_principal":    round(principal, 2),
+            "outstanding_principal": round(outstanding, 2),
+            "monthly_emi":           round(emi, 2),
+            "annual_emi":            round(emi * 12, 2),
+            "total_months":          total_months,
+            "emis_paid":             emis_paid,
+            "remaining_months":      remaining_months,
+            "remaining_years":       round(remaining_months / 12.0, 1),
+            "roi_pct":               roi,
+            "total_payment":         round(total_payment, 2),
+            "total_interest":        round(total_interest, 2),
+            "principal_paid":        round(principal_paid, 2),
+            "interest_paid":         round(interest_paid, 2),
+            "remaining_payment":     round(remaining_payment, 2),
+            "remaining_interest":    round(remaining_interest, 2),
+            "completion_year":       completion_year,
+            "progress_pct":          round(
+                (emis_paid / total_months) * 100, 1
+            ) if total_months > 0 else 100.0,
+        })
+
+    return details
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Main Simulation Engine
 # ─────────────────────────────────────────────────────────────────────────────
 
 def run_simulation(profile: dict, assets: list, goals: list,
-                   sips: list = None, insurance_plans: list = None) -> dict:
+                   sips: list = None, insurance_plans: list = None, loans: list = None) -> dict:
     """
     Year-by-year wealth simulation from current_age → life_expectancy (max 90).
 
@@ -246,7 +380,8 @@ def run_simulation(profile: dict, assets: list, goals: list,
 
     # ── Simulation loop ──────────────────────────────────────────
     yearly_data: list[dict] = []
-    cumulative_out  = 0.0
+    cumulative_out      = 0.0
+    cumulative_loan_out = 0.0
     port_at_retire  = 0.0
     longevity_year  = None   # None = portfolio survives the entire simulation window
     longevity_age   = None
@@ -267,16 +402,20 @@ def run_simulation(profile: dict, assets: list, goals: list,
         ins_income = _compute_insurance_income(insurance_plans or [], year)
         portfolio += ins_income
 
-        # 3. Discrete goal outflows from schedule
+        # 4. Loan EMI outflows
+        loan_out = _compute_loan_outflow_annual(loans or [], year, base_year)
+        cumulative_loan_out += loan_out
+
+        # 5. Discrete goal outflows from schedule
         goal_out = float(outflow_sched.get(year, 0.0))
 
-        # 4. Retirement living expenses — inflation-adjusted at retire_inf per year
+        # 6. Retirement living expenses — inflation-adjusted at retire_inf per year
         retire_out = 0.0
         if age >= retire_age:
             yrs_retired = age - retire_age
             retire_out = monthly_exp_r * 12 * ((1 + retire_inf) ** yrs_retired)
 
-        total_out   = goal_out + retire_out
+        total_out   = goal_out + retire_out + loan_out
         portfolio  -= total_out
         cumulative_out += total_out
 
@@ -291,15 +430,17 @@ def run_simulation(profile: dict, assets: list, goals: list,
             exhausted      = True
 
         yearly_data.append({
-            "year":                year,
-            "age":                 age,
-            "portfolio_value":     round(max(portfolio, 0), 2),
-            "goal_outflow":        round(goal_out, 2),
-            "retirement_outflow":  round(retire_out, 2),
-            "annual_outflow":      round(total_out, 2),
-            "cumulative_outflows": round(cumulative_out, 2),
-            "is_solvent":          portfolio > 0,
-            "is_retirement":       age >= retire_age,
+            "year":                     year,
+            "age":                      age,
+            "portfolio_value":          round(max(portfolio, 0), 2),
+            "loan_outflow":             round(loan_out, 2),
+            "goal_outflow":             round(goal_out, 2),
+            "retirement_outflow":       round(retire_out, 2),
+            "annual_outflow":           round(total_out, 2),
+            "cumulative_outflows":      round(cumulative_out, 2),
+            "cumulative_loan_outflows": round(cumulative_loan_out, 2),
+            "is_solvent":              portfolio > 0,
+            "is_retirement":           age >= retire_age,
         })
 
         # Portfolio exhausted — fill remaining years with zeros
@@ -310,13 +451,15 @@ def run_simulation(profile: dict, assets: list, goals: list,
                 cumulative_out += fo
                 yearly_data.append({
                     "year": y2, "age": a2,
-                    "portfolio_value":    0,
-                    "goal_outflow":       round(fo, 2),
-                    "retirement_outflow": 0.0,
-                    "annual_outflow":     round(fo, 2),
-                    "cumulative_outflows":round(cumulative_out, 2),
-                    "is_solvent":         False,
-                    "is_retirement":      a2 >= retire_age,
+                    "portfolio_value":          0,
+                    "loan_outflow":             0.0,
+                    "goal_outflow":             round(fo, 2),
+                    "retirement_outflow":       0.0,
+                    "annual_outflow":           round(fo, 2),
+                    "cumulative_outflows":      round(cumulative_out, 2),
+                    "cumulative_loan_outflows": round(cumulative_loan_out, 2),
+                    "is_solvent":              False,
+                    "is_retirement":           a2 >= retire_age,
                 })
             break
 
@@ -334,16 +477,27 @@ def run_simulation(profile: dict, assets: list, goals: list,
             years_to_fi = d["year"] - base_year
             break
 
+    # ── Loan analytics ───────────────────────────────────────────
+    loan_details         = _build_loan_details(loans or [], base_year)
+    total_outstanding    = sum(d["outstanding_principal"] for d in loan_details)
+    total_rem_interest   = sum(d["remaining_interest"] for d in loan_details)
+    total_rem_payment    = sum(d["remaining_payment"] for d in loan_details)
+    debt_to_asset_ratio  = round(total_outstanding / initial_port, 3) if initial_port > 0 else 0.0
+
     # ── Goal details & recommendations ───────────────────────────
     goal_details = _build_goal_details(
         goals, base_year, yearly_data,
         blended_r, initial_port, annual_savings, retire_age, start_age,
     )
-    health = _health_score(fi_ratio, effective_savings_pct * 100, blended_r, exhausted, goal_details)
+    health = _health_score(
+        fi_ratio, effective_savings_pct * 100, blended_r,
+        exhausted, goal_details, debt_to_asset_ratio,
+    )
     recs   = _recommendations(
         exhausted, longevity_age, fi_ratio,
         port_at_retire, fi_corpus_needed, blended_r,
         effective_savings_pct * 100, goal_details, currency,
+        debt_to_asset_ratio, total_outstanding,
     )
 
     return {
@@ -359,21 +513,24 @@ def run_simulation(profile: dict, assets: list, goals: list,
             if float(a.get("value") or 0) > 0
         ],
         "summary": {
-            "portfolio_exhausted":     exhausted,
-            "longevity_year":          longevity_year,
-            "longevity_age":           longevity_age,
-            "life_expectancy":         life_exp,
-            "simulation_end_age":      end_age,
-            "portfolio_at_retirement": round(port_at_retire, 2),
-            "fi_corpus_needed":        round(fi_corpus_needed, 2),
-            "total_corpus_required":   round(total_corpus_req, 2),
-            "surplus_at_retirement":   round(surplus, 2),
-            "fi_ratio":                fi_ratio,
-            "years_to_fi":             years_to_fi,
-            "blended_return_pct":      round(blended_r * 100, 2),
+            "portfolio_exhausted":       exhausted,
+            "longevity_year":            longevity_year,
+            "longevity_age":             longevity_age,
+            "life_expectancy":           life_exp,
+            "simulation_end_age":        end_age,
+            "portfolio_at_retirement":   round(port_at_retire, 2),
+            "fi_corpus_needed":          round(fi_corpus_needed, 2),
+            "total_corpus_required":     round(total_corpus_req, 2),
+            "surplus_at_retirement":     round(surplus, 2),
+            "fi_ratio":                  fi_ratio,
+            "years_to_fi":               years_to_fi,
+            "blended_return_pct":        round(blended_r * 100, 2),
             "effective_savings_rate_pct": round(effective_savings_pct * 100, 1),
-            "health_score":            health,
-            "recommendations":         recs,
+            "health_score":              health,
+            "recommendations":           recs,
+            "debt_to_asset_ratio":       debt_to_asset_ratio,
+            "total_outstanding_debt":    round(total_outstanding, 2),
+            "total_debt_service":        round(cumulative_loan_out, 2),
         },
         "blended_return": round(blended_r * 100, 2),
         "total_portfolio": round(initial_port, 2),
@@ -394,6 +551,22 @@ def run_simulation(profile: dict, assets: list, goals: list,
                 sum(float(p.get("terminal_bonus") or 0) for p in (insurance_plans or [])), 2
             ),
             "plan_count": len(insurance_plans or []),
+        },
+        "loan_summary": {
+            "total_monthly_emi":          round(sum(d["monthly_emi"] for d in loan_details), 2),
+            "total_annual_emi":           round(sum(d["annual_emi"] for d in loan_details), 2),
+            "total_outstanding_principal": round(total_outstanding, 2),
+            "total_remaining_interest":   round(total_rem_interest, 2),
+            "total_remaining_payment":    round(total_rem_payment, 2),
+            "total_original_principal":   round(
+                sum(d["original_principal"] for d in loan_details), 2
+            ),
+            "total_interest_overall":     round(
+                sum(d["total_interest"] for d in loan_details), 2
+            ),
+            "debt_to_asset_ratio":        debt_to_asset_ratio,
+            "count":                      len(loans or []),
+            "details":                    loan_details,
         },
     }
 
@@ -452,6 +625,7 @@ def _recommendations(
     exhausted: bool, longevity_age: int, fi_ratio: float,
     port_at_retire: float, fi_corpus_needed: float, blended_r: float,
     savings_rate_pct: float, goal_details: list, currency: str,
+    debt_to_asset_ratio: float = 0.0, total_outstanding: float = 0.0,
 ) -> list[str]:
     recs = []
 
@@ -499,6 +673,18 @@ def _recommendations(
         recs.append(
             f"🎯 Critical goal '{d['name']}' is at risk (FV: {_fmt(d['future_value'], currency)}). "
             f"Start a dedicated goal-based SIP of {_fmt(monthly_needed, currency)}/month today."
+        )
+
+    if debt_to_asset_ratio > 0.4:
+        recs.append(
+            f"🏦 DEBT ALERT: Debt-to-asset ratio of {debt_to_asset_ratio*100:.0f}% is high. "
+            f"Outstanding debt of {_fmt(total_outstanding, currency)} exceeds 40% of portfolio. "
+            "Prioritise aggressive debt repayment or prepayment of highest-rate loans."
+        )
+    elif debt_to_asset_ratio > 0.2:
+        recs.append(
+            f"📋 Moderate debt burden ({debt_to_asset_ratio*100:.0f}% debt-to-asset). "
+            "Build an accelerated repayment plan to free up cash flow for investments."
         )
 
     if not recs:

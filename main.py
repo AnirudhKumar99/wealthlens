@@ -86,12 +86,23 @@ class InsurancePlanItem(BaseModel):
     accidental_rider:  float         = Field(0.0, ge=0)
 
 
+class LoanItem(BaseModel):
+    id:           str   = ""
+    name:         str   = "Home Loan"
+    loan_type:    str   = "home"
+    principal:    float = Field(0.0, ge=0)
+    total_months: int   = Field(240, ge=1)
+    roi_pct:      float = Field(8.5, ge=0, le=100)
+    emis_paid:    int   = Field(0, ge=0)
+
+
 class SimulationRequest(BaseModel):
     profile:          ProfileModel
     assets:           List[AssetItem]          = []
     goals:            List[GoalItem]           = []
     sips:             List[SipItem]            = []
     insurance_plans:  List[InsurancePlanItem]  = []
+    loans:            List[LoanItem]           = []
 
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
@@ -122,4 +133,5 @@ async def simulate(payload: SimulationRequest):
         goals=[g.model_dump()  for g in payload.goals],
         sips=[s.model_dump()   for s in payload.sips],
         insurance_plans=[p.model_dump() for p in payload.insurance_plans],
+        loans=[l.model_dump() for l in payload.loans],
     )

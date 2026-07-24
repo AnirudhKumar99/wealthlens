@@ -124,6 +124,19 @@ function initCharts() {
           borderDash:      [6, 3],
           order:           2,
         },
+        {
+          label:           'Cumulative Debt Service',
+          data:            [],
+          borderColor:     C.red,
+          backgroundColor: 'rgba(239,68,68,0.06)',
+          borderWidth:     1.5,
+          fill:            true,
+          tension:         0.4,
+          pointRadius:     0,
+          pointHoverRadius:5,
+          borderDash:      [4, 4],
+          order:           3,
+        },
       ],
     },
     options: {
@@ -361,9 +374,15 @@ function updateCharts(data, currency) {
       });
       wealthChart.data.datasets[0].data = yearly_data.map(function(d) { return d.portfolio_value; });
       wealthChart.data.datasets[1].data = yearly_data.map(function(d) { return d.cumulative_outflows; });
+      wealthChart.data.datasets[2].data = yearly_data.map(function(d) { return d.cumulative_loan_outflows || 0; });
 
       wealthChart.options.plugins.tooltip.callbacks.label = function(ctx) {
-        return ' ' + ctx.dataset.label + ': ' + fmt(ctx.raw);
+        var label = ' ' + ctx.dataset.label + ': ' + fmt(ctx.raw);
+        var yearData = yearly_data[ctx.dataIndex];
+        if (ctx.datasetIndex === 1 && yearData && yearData.loan_outflow > 0) {
+          label += ' (includes ' + fmt(yearData.loan_outflow) + ' in Debt EMIs)';
+        }
+        return label;
       };
       wealthChart.options.scales.y.ticks.callback = function(v) { return fmt(v); };
 

@@ -678,6 +678,140 @@
     </div>
 
     <!-- ╔══════════════════════════════════════════════════════════╗
+         ║  SECTION 2.8 — Loans / Debt Obligations                ║
+         ╚══════════════════════════════════════════════════════════╝ -->
+    <div class="glass-card p-6 mb-8">
+      <div class="flex items-start sm:items-center justify-between gap-4 mb-6 flex-col sm:flex-row">
+        <h2 class="section-title mb-0">
+          <span class="section-icon">🏦</span> Loans & Debt Obligations
+        </h2>
+        <div class="text-right">
+          <div class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">Total Monthly EMI</div>
+          <div class="text-xl font-bold text-red-400" x-text="formatCurrency(totalMonthlyEMI)"></div>
+        </div>
+      </div>
+      <p class="text-slate-400 text-sm mb-6">Track your active liabilities. EMIs will be deducted from your portfolio automatically during active loan years.</p>
+
+      <div class="overflow-x-auto hide-scrollbar">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-white/10">
+              <th class="table-head text-left pb-2.5 pr-2 min-w-44">Loan Name</th>
+              <th class="table-head text-left pb-2.5 pr-2">Type</th>
+              <th class="table-head text-right pb-2.5 pr-2">Principal</th>
+              <th class="table-head text-center pb-2.5 pr-2">Tenure (Months)</th>
+              <th class="table-head text-center pb-2.5 pr-2">ROI (%)</th>
+              <th class="table-head text-center pb-2.5 pr-2">EMIs Paid</th>
+              <th class="table-head text-right pb-2.5 pr-2">Computed EMI</th>
+              <th class="pb-2.5 w-6"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="loan in loans" :key="loan.id">
+              <tr class="border-b border-white/5 group hover:bg-white/3 transition-colors">
+                <td class="py-2 pr-2">
+                  <input type="text" x-model="loan.name" class="table-input w-full min-w-36" placeholder="Loan name">
+                </td>
+                <td class="py-2 pr-2">
+                  <select x-model="loan.loan_type" class="table-input w-full min-w-28">
+                    <option value="home">Home Loan</option>
+                    <option value="auto">Auto Loan</option>
+                    <option value="education">Education Loan</option>
+                    <option value="personal">Personal Loan</option>
+                    <option value="other">Other Debt</option>
+                  </select>
+                </td>
+                <td class="py-2 pr-2">
+                  <div class="relative">
+                    <span class="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none" x-text="profile.currency === 'USD' ? '$' : '₹'"></span>
+                    <input type="number" x-model.number="loan.principal" class="table-input text-right w-full pl-6" min="0" step="50000">
+                  </div>
+                </td>
+                <td class="py-2 pr-2">
+                  <input type="number" x-model.number="loan.total_months" class="table-input text-center w-20 mx-auto" min="1">
+                </td>
+                <td class="py-2 pr-2">
+                  <div class="relative w-20 mx-auto">
+                    <input type="number" x-model.number="loan.roi_pct" class="table-input text-center w-full pr-5" min="0" step="0.1">
+                    <span class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none">%</span>
+                  </div>
+                </td>
+                <td class="py-2 pr-2">
+                  <input type="number" x-model.number="loan.emis_paid" class="table-input text-center w-20 mx-auto" min="0">
+                </td>
+                <td class="py-2 pr-2 text-right">
+                  <span class="text-sm font-semibold text-red-300/90" x-text="
+                    (function(){
+                      const p = parseFloat(loan.principal) || 0;
+                      const r = parseFloat(loan.roi_pct) || 0;
+                      const m = parseInt(loan.total_months) || 1;
+                      if(p<=0||m<=0) return '0';
+                      const rm = r/100/12;
+                      const emi = p*rm*Math.pow(1+rm,m)/(Math.pow(1+rm,m)-1);
+                      return formatCurrency(emi);
+                    })()
+                  "></span>
+                </td>
+                <td class="py-2 text-right">
+                  <button @click="removeLoan(loan.id)" class="text-slate-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100" title="Delete Loan">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  </button>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="loans.length === 0">
+              <td colspan="8" class="py-8 text-center text-slate-500 text-sm">No active loans. You are debt-free! 🎉</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Per-Loan Amortisation Details (post-simulation) -->
+      <div x-show="results && results.loan_summary && results.loan_summary.details && results.loan_summary.details.length > 0" class="mt-6 pt-5 border-t border-white/8">
+        <p class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-4">Amortisation Breakdown</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <template x-for="ld in (results ? results.loan_summary.details : [])" :key="ld.id">
+            <div class="bg-white/3 border border-white/7 rounded-xl p-4 space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-white font-semibold text-sm" x-text="ld.name"></span>
+                <span class="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-red-500/15 text-red-400" x-text="formatCurrency(ld.monthly_emi) + '/mo'"></span>
+              </div>
+              <!-- Progress bar -->
+              <div>
+                <div class="flex justify-between text-xs mb-1">
+                  <span class="text-slate-400" x-text="`${ld.emis_paid} of ${ld.total_months} EMIs paid`"></span>
+                  <span class="text-emerald-400 font-semibold" x-text="ld.progress_pct + '% complete'"></span>
+                </div>
+                <div class="h-2 bg-white/8 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all duration-700" style="background: linear-gradient(90deg, #10b981, #06b6d4);" :style="`width: ${ld.progress_pct}%`"></div>
+                </div>
+              </div>
+              <!-- Detail grid -->
+              <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                <div class="flex justify-between"><span class="text-slate-500">Original Principal</span><span class="text-slate-300 font-medium" x-text="formatCurrency(ld.original_principal)"></span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Outstanding Principal</span><span class="text-amber-400 font-semibold" x-text="formatCurrency(ld.outstanding_principal)"></span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Principal Paid</span><span class="text-emerald-400 font-medium" x-text="formatCurrency(ld.principal_paid)"></span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Interest Paid</span><span class="text-orange-400 font-medium" x-text="formatCurrency(ld.interest_paid)"></span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Remaining Interest</span><span class="text-red-400 font-medium" x-text="formatCurrency(ld.remaining_interest)"></span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Total Interest Cost</span><span class="text-slate-300 font-medium" x-text="formatCurrency(ld.total_interest)"></span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Total Payment</span><span class="text-slate-300 font-semibold" x-text="formatCurrency(ld.total_payment)"></span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Remaining Payment</span><span class="text-red-300 font-semibold" x-text="formatCurrency(ld.remaining_payment)"></span></div>
+                <div class="flex justify-between"><span class="text-slate-500">ROI</span><span class="text-slate-300 font-medium" x-text="ld.roi_pct + '%'"></span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Remaining</span><span class="text-cyan-400 font-medium" x-text="ld.remaining_years + ' yrs (' + ld.remaining_months + ' months)'"></span></div>
+                <div class="flex justify-between col-span-2"><span class="text-slate-500">Completion Year</span><span class="text-white font-semibold" x-text="ld.completion_year"></span></div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <button @click="addLoan()" class="add-row-btn mt-5" style="border-color: rgba(239,68,68,0.3); color: #f87171;">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Add Loan
+      </button>
+    </div>
+
+    <!-- ╔══════════════════════════════════════════════════════════╗
          ║  SECTION 3 — Life Goals Engine                         ║
          ╚══════════════════════════════════════════════════════════╝ -->
     <div class="glass-card p-6">
@@ -853,7 +987,7 @@
         </h2>
 
         <!-- ── KPI Cards ───────────────────────────────────── -->
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
 
           <div class="kpi-card border-l-2 border-emerald-500">
             <div class="kpi-label">Portfolio at Retirement</div>
@@ -888,6 +1022,15 @@
                  x-text="results ? results.summary.fi_ratio + '×' : '—'"></div>
             <div class="kpi-sub"
                  x-text="results ? (results.summary.fi_ratio >= 1 ? '✓ Financially independent' : '⚠ Below 1× target') : ''"></div>
+          </div>
+
+          <div class="kpi-card"
+               :class="results ? (results.summary.debt_to_asset_ratio <= 0.15 ? 'border-l-2 border-emerald-500' : results.summary.debt_to_asset_ratio <= 0.30 ? 'border-l-2 border-amber-500' : 'border-l-2 border-red-500') : ''">
+            <div class="kpi-label">Debt Health</div>
+            <div class="kpi-value"
+                 :class="results ? (results.summary.debt_to_asset_ratio <= 0.15 ? 'text-emerald-400' : results.summary.debt_to_asset_ratio <= 0.30 ? 'text-amber-400' : 'text-red-400') : 'text-slate-500'"
+                 x-text="results ? (results.summary.debt_to_asset_ratio * 100).toFixed(1) + '% D/A' : '—'"></div>
+            <div class="kpi-sub" x-text="results ? (results.summary.total_outstanding_debt > 0 ? `Outstanding: ${formatCurrency(results.summary.total_outstanding_debt)}` : '✓ Debt-free') : ''"></div>
           </div>
 
         </div>
@@ -976,6 +1119,10 @@
           <span class="text-xs text-slate-500">
             Simulation horizon: <span class="text-slate-400 font-semibold"
                                       x-text="`Age ${profile.current_age} → ${profile.life_expectancy}`"></span>
+          </span>
+          <span class="text-xs text-slate-500">
+            Total debt service: <span class="text-slate-400 font-semibold"
+                                      x-text="results && results.summary.total_debt_service ? formatCurrency(results.summary.total_debt_service) : '₹0'"></span>
           </span>
           <span class="text-xs text-slate-600 ml-auto">
             ⚠ For illustrative purposes only. Consult a SEBI-registered advisor.
@@ -1087,6 +1234,12 @@
       _nextId:          100,
       _nextSipId:       200,
       _nextInsuranceId: 300,
+      _nextLoanId:      400,
+
+      // ── Loans / Debt Obligations ─────────────────────────────
+      loans: [
+        { id: 'l1', name: 'Home Loan', loan_type: 'home', principal: 5000000, total_months: 240, roi_pct: 8.5, emis_paid: 36 },
+      ],
 
       // ── Insurance Plans (Guaranteed Income & Child Education Annuity) ───────────
       insurance_plans: [
@@ -1142,6 +1295,34 @@
       // ── Computed: total monthly SIP ───────────────────────
       get totalMonthlySIP() {
         return this.sips.reduce((s, sip) => s + (parseFloat(sip.monthly_amount) || 0), 0);
+      },
+
+      // ── Computed: total monthly EMI ─────────────────────────
+      get totalMonthlyEMI() {
+        return this.loans.reduce((s, loan) => {
+          const p = parseFloat(loan.principal) || 0;
+          const r = parseFloat(loan.roi_pct) || 0;
+          const m = parseInt(loan.total_months) || 1;
+          const paid = parseInt(loan.emis_paid) || 0;
+          if (p <= 0 || m <= 0 || paid >= m) return s;
+          const r_m = r / 100 / 12;
+          const emi = p * r_m * Math.pow(1 + r_m, m) / (Math.pow(1 + r_m, m) - 1);
+          return s + emi;
+        }, 0);
+      },
+
+      // ── Computed: total outstanding debt ────────────────────
+      get totalOutstandingDebt() {
+        return this.loans.reduce((s, loan) => {
+          const p = parseFloat(loan.principal) || 0;
+          const r = parseFloat(loan.roi_pct) || 0;
+          const m = parseInt(loan.total_months) || 1;
+          const paid = parseInt(loan.emis_paid) || 0;
+          if (p <= 0 || m <= 0 || paid >= m) return s;
+          const r_m = r / 100 / 12;
+          const balance = p * (Math.pow(1 + r_m, m) - Math.pow(1 + r_m, paid)) / (Math.pow(1 + r_m, m) - 1);
+          return s + balance;
+        }, 0);
       },
 
       // ── Computed: effective savings rate % ────────────────
@@ -1272,6 +1453,22 @@
         this.insurance_plans = this.insurance_plans.filter(p => p.id !== id);
       },
 
+      // ── Loan management ──────────────────────────────────────────────
+      addLoan() {
+        this.loans.push({
+          id:           'l' + (this._nextLoanId++),
+          name:         'New Loan',
+          loan_type:    'personal',
+          principal:    1000000,
+          total_months: 60,
+          roi_pct:      10.5,
+          emis_paid:    0,
+        });
+      },
+      removeLoan(id) {
+        this.loans = this.loans.filter(l => l.id !== id);
+      },
+
       // ── Compute FV inline for goal cards ─────────────────
       computeFV(goal) {
         const pv = parseFloat(goal.present_value) || 0;
@@ -1306,6 +1503,7 @@
               goals:           this.goals,
               sips:            this.sips,
               insurance_plans: this.insurance_plans,
+              loans:           this.loans,
             }),
           });
           if (!res.ok) {
