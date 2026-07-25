@@ -1,10 +1,11 @@
-const BASE = 'http://localhost:8000';
+const BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 async function request(method, path, body) {
-  const opts = {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-  };
+  const token = localStorage.getItem('wealthlens_token');
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(`${BASE}${path}`, opts);
   if (!res.ok) throw new Error(await res.text());
