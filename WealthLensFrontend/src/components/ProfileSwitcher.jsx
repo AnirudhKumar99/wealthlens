@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
 import { api } from '../api/client';
 
-export default function ProfileSwitcher({ profiles, activeProfileId, onChange, onRefresh }) {
+export default function ProfileSwitcher({ profiles, activeProfileId, onChange, onRefresh, triggerCreate, onResetTrigger }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newName, setNewName] = useState('');
   
+  React.useEffect(() => {
+    if (triggerCreate) {
+      setIsOpen(true);
+      setIsCreating(true);
+      if (onResetTrigger) onResetTrigger();
+    }
+  }, [triggerCreate, onResetTrigger]);
+
   const activeProfile = profiles.find(p => p.id === activeProfileId);
   
   const handleSwitch = async (id) => {

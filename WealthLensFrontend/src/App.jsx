@@ -33,6 +33,7 @@ export default function App() {
   // Profile State
   const [profiles, setProfiles] = useState([]);
   const [activeProfileId, setActiveProfileId] = useState(null);
+  const [triggerCreateProfile, setTriggerCreateProfile] = useState(false);
   const [categories, setCategories] = useState([]);
 
   const showToast = (msg) => {
@@ -175,10 +176,10 @@ export default function App() {
           </p>
           <button 
             className="btn-simulate"
-            onClick={() => handleCreateDefaultProfile(`${user ? user.username : 'My'}'s Investment Profile`)}
+            onClick={() => setTriggerCreateProfile(true)}
             style={{ padding: '14px 32px', fontSize: '15px', borderRadius: '50px' }}
           >
-            ➕ Create Profile & Start Simulation
+            ＋ Create Profile & Start Simulation
           </button>
         </div>
       );
@@ -241,6 +242,8 @@ export default function App() {
               activeProfileId={activeProfileId} 
               onChange={handleProfileChange}
               onRefresh={loadProfiles}
+              triggerCreate={triggerCreateProfile}
+              onResetTrigger={() => setTriggerCreateProfile(false)}
             />
             <button 
               className="btn-secondary" 
