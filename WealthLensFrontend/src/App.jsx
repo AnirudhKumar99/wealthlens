@@ -94,6 +94,7 @@ export default function App() {
     localStorage.setItem('wealthlens_token', authRes.access_token);
     setToken(authRes.access_token);
     setUser(authRes.user);
+    setSimulation(null);
     if (authRes.active_profile_id) {
       setActiveProfileId(authRes.active_profile_id);
     } else {
@@ -132,10 +133,13 @@ export default function App() {
   useEffect(() => {
     if (activeProfileId) {
       runSimulation(true);
+    } else {
+      setSimulation(null);
     }
   }, [activeProfileId, runSimulation]);
 
   const handleProfileChange = (newId) => {
+    setSimulation(null);
     setActiveProfileId(newId);
     setActiveTab('dashboard');
   };
