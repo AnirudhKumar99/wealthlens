@@ -17,7 +17,17 @@ export default function ProfileSwitcher({ profiles, activeProfileId, onChange, o
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!newName.trim()) return;
-    const res = await api.createProfile({ family_name: newName });
+    const res = await api.createProfile({
+      family_name: newName,
+      current_age: 34,
+      retirement_age: 60,
+      life_expectancy: 82,
+      annual_income: 2160000,
+      savings_rate: 35.0,
+      monthly_expenses_retirement: 36500,
+      retirement_inflation_rate: 5.2,
+      currency: 'INR'
+    });
     setNewName('');
     setIsCreating(false);
     setIsOpen(false);
