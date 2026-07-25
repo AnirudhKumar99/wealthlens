@@ -44,28 +44,12 @@ def api_register(payload: UserRegisterModel):
     pw_hash, salt = hash_password(payload.password)
     user = create_user(user_id, payload.username, payload.email, pw_hash, salt)
     
-    # Auto-create a default profile for the new user
-    profile_id = str(uuid.uuid4())
-    create_profile(profile_id, {
-        "user_id": user_id,
-        "family_name": f"{payload.username}'s Wealth Profile",
-        "current_age": 34,
-        "retirement_age": 60,
-        "life_expectancy": 82,
-        "annual_income": 2160000,
-        "savings_rate": 35.0,
-        "monthly_expenses_retirement": 36500,
-        "retirement_inflation_rate": 5.2,
-        "currency": "INR"
-    })
-    set_active_profile_id(profile_id)
-    
     token = create_access_token({"sub": user_id, "email": payload.email, "username": payload.username})
     return {
         "access_token": token,
         "token_type": "bearer",
         "user": user,
-        "active_profile_id": profile_id
+        "active_profile_id": None
     }
 
 @app.post("/api/auth/login")

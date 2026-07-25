@@ -55,8 +55,7 @@ export default function App() {
           if (userProfs.length > 0) {
             setActiveProfileId(userProfs[0].id);
           } else {
-            const activeRes = await api.getActiveProfile();
-            setActiveProfileId(activeRes.active_profile_id);
+            setActiveProfileId(null);
           }
         } catch {
           // Token expired or invalid
@@ -93,6 +92,8 @@ export default function App() {
     setUser(authRes.user);
     if (authRes.active_profile_id) {
       setActiveProfileId(authRes.active_profile_id);
+    } else {
+      setActiveProfileId(null);
     }
     loadProfiles();
   };
