@@ -144,14 +144,14 @@ export default function App() {
     try {
       const res = await api.createProfile({
         user_id: user ? user.id : '',
-        family_name: name || 'My Investment Profile',
-        current_age: 30,
+        family_name: name || 'My Wealth Profile',
+        current_age: 32,
         retirement_age: 60,
         life_expectancy: 85,
-        annual_income: 1200000,
-        savings_rate: 30,
-        monthly_expenses_retirement: 50000,
-        retirement_inflation_rate: 6.0,
+        annual_income: 2400000,
+        savings_rate: 35,
+        monthly_expenses_retirement: 45000,
+        retirement_inflation_rate: 5.5,
         currency: 'INR'
       });
       showToast('🎉 Profile created & auto-populated!');

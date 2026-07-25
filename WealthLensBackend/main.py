@@ -48,14 +48,14 @@ def api_register(payload: UserRegisterModel):
     profile_id = str(uuid.uuid4())
     create_profile(profile_id, {
         "user_id": user_id,
-        "family_name": f"{payload.username}'s Family",
-        "current_age": 30,
+        "family_name": f"{payload.username}'s Wealth Profile",
+        "current_age": 32,
         "retirement_age": 60,
         "life_expectancy": 85,
-        "annual_income": 1200000,
-        "savings_rate": 30,
-        "monthly_expenses_retirement": 50000,
-        "retirement_inflation_rate": 6.0,
+        "annual_income": 2400000,
+        "savings_rate": 35,
+        "monthly_expenses_retirement": 45000,
+        "retirement_inflation_rate": 5.5,
         "currency": "INR"
     })
     set_active_profile_id(profile_id)

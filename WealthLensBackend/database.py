@@ -243,37 +243,42 @@ def seed_profile_defaults(conn, profile_id: str):
     import uuid, datetime
     curr_year = datetime.datetime.now().year
 
-    # Assets
+    # Assets (Total ~74 Lakhs)
     assets = [
-        (str(uuid.uuid4()), profile_id, 'EPF Balance', 'debt', 1500000, 8.1),
-        (str(uuid.uuid4()), profile_id, 'Equity Mutual Funds', 'equity', 2000000, 12.0),
-        (str(uuid.uuid4()), profile_id, 'Emergency FD', 'debt', 300000, 6.5)
+        (str(uuid.uuid4()), profile_id, 'EPF Balance', 'debt', 1800000, 8.15),
+        (str(uuid.uuid4()), profile_id, 'Equity Mutual Funds', 'equity', 3500000, 12.5),
+        (str(uuid.uuid4()), profile_id, 'US Tech RSUs', 'equity', 1200000, 13.0),
+        (str(uuid.uuid4()), profile_id, 'Emergency FD', 'debt', 500000, 6.8),
+        (str(uuid.uuid4()), profile_id, 'Sovereign Gold Bonds', 'gold', 400000, 8.5)
     ]
     conn.executemany("INSERT INTO assets (id, profile_id, name, asset_class, value, return_rate) VALUES (?, ?, ?, ?, ?, ?)", assets)
 
     # Goals
     goals = [
-        (str(uuid.uuid4()), profile_id, 'Dream Home Downpayment', 'need', 2500000, curr_year + 5, 6.0, 'lump_sum', 1, 0),
-        (str(uuid.uuid4()), profile_id, 'Child College Education', 'critical', 1500000, curr_year + 12, 7.0, 'recurring', 4, 8.0)
+        (str(uuid.uuid4()), profile_id, 'Dream Home Downpayment', 'need', 2000000, curr_year + 5, 6.0, 'lump_sum', 1, 0),
+        (str(uuid.uuid4()), profile_id, 'Child College Education', 'critical', 1600000, curr_year + 12, 7.0, 'recurring', 4, 8.0),
+        (str(uuid.uuid4()), profile_id, 'Family International Vacation', 'want', 500000, curr_year + 3, 5.0, 'lump_sum', 1, 0)
     ]
     conn.executemany("INSERT INTO goals (id, profile_id, name, priority, present_value, target_year, inflation_rate, goal_type, duration_years, step_up_pct) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", goals)
 
-    # SIPs
+    # SIPs (Total ~67.5k/month with step-ups)
     sips = [
-        (str(uuid.uuid4()), profile_id, 'Index Fund SIP', 'equity', 15000, 8.0, 12.0, curr_year, curr_year + 20),
-        (str(uuid.uuid4()), profile_id, 'PPF Monthly', 'debt', 10000, 5.0, 7.1, curr_year, curr_year + 15)
+        (str(uuid.uuid4()), profile_id, 'Nifty 50 Index Fund SIP', 'equity', 25000, 10.0, 12.5, curr_year, curr_year + 20),
+        (str(uuid.uuid4()), profile_id, 'Flexi Cap Fund SIP', 'equity', 15000, 8.0, 13.0, curr_year, curr_year + 20),
+        (str(uuid.uuid4()), profile_id, 'Midcap Growth SIP', 'equity', 15000, 10.0, 14.0, curr_year, curr_year + 18),
+        (str(uuid.uuid4()), profile_id, 'PPF Monthly Contribution', 'debt', 12500, 5.0, 7.1, curr_year, curr_year + 15)
     ]
     conn.executemany("INSERT INTO sips (id, profile_id, name, asset_class, monthly_amount, step_up_pct, return_rate, start_year, end_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", sips)
 
-    # Loans
+    # Loans (Car loan with low remaining balance)
     loans = [
-        (str(uuid.uuid4()), profile_id, 'Home Loan', 'home', 2500000, 240, 8.5, 60)
+        (str(uuid.uuid4()), profile_id, 'Car Loan', 'car', 600000, 60, 8.5, 24)
     ]
     conn.executemany("INSERT INTO loans (id, profile_id, name, loan_type, principal, total_months, roi_pct, emis_paid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", loans)
 
     # Insurance
     insurance = [
-        (str(uuid.uuid4()), profile_id, 'Guaranteed Income Plan', 30000, curr_year + 7, curr_year + 10, 75000, curr_year + 25, 100000, 500000, 200000)
+        (str(uuid.uuid4()), profile_id, 'Term Life & Guaranteed Plan', 35000, curr_year + 10, curr_year + 15, 100000, curr_year + 30, 200000, 1000000, 500000)
     ]
     conn.executemany("INSERT INTO insurance_plans (id, profile_id, name, annual_premium, premium_end_year, income_start_year, annual_income, income_end_year, terminal_bonus, death_benefit, accidental_rider) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", insurance)
 
@@ -283,10 +288,10 @@ def create_profile(profile_id: str, data: dict):
     conn.execute("""INSERT INTO profiles 
         (id, family_name, current_age, retirement_age, life_expectancy, annual_income, savings_rate, monthly_expenses_retirement, retirement_inflation_rate, currency)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (profile_id, data.get('family_name', 'My Family'), data.get('current_age', 35),
+        (profile_id, data.get('family_name', 'My Profile'), data.get('current_age', 32),
          data.get('retirement_age', 60), data.get('life_expectancy', 85),
-         data.get('annual_income', 0), data.get('savings_rate', 30),
-         data.get('monthly_expenses_retirement', 60000), data.get('retirement_inflation_rate', 6.0),
+         data.get('annual_income', 2400000), data.get('savings_rate', 35),
+         data.get('monthly_expenses_retirement', 45000), data.get('retirement_inflation_rate', 5.5),
          data.get('currency', 'INR'))
     )
     seed_profile_defaults(conn, profile_id)
