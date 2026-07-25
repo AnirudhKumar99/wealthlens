@@ -66,7 +66,7 @@ export default function ProfileSwitcher({ profiles, activeProfileId, onChange, o
                   onChange={e => setNewName(e.target.value)}
                   className="form-input" 
                   style={{ padding: '6px 10px', fontSize: '13px' }}
-                  placeholder="Family Name"
+                  placeholder="Profile Name"
                   autoFocus
                 />
                 <button type="submit" className="btn-primary" style={{ padding: '6px 10px' }}>✓</button>

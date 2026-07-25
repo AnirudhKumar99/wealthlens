@@ -139,12 +139,46 @@ export default function App() {
     runSimulation(true, msg);
   };
 
+  const handleCreateDefaultProfile = async (name) => {
+    setLoading(true);
+    try {
+      const res = await api.createProfile({
+        user_id: user ? user.id : '',
+        family_name: name || 'My Investment Profile',
+        current_age: 30,
+        retirement_age: 60,
+        life_expectancy: 85,
+        annual_income: 1200000,
+        savings_rate: 30,
+        monthly_expenses_retirement: 50000,
+        retirement_inflation_rate: 6.0,
+        currency: 'INR'
+      });
+      showToast('🎉 Profile created & auto-populated!');
+      await loadProfiles();
+    } catch {
+      showToast('❌ Failed to create profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const renderContent = () => {
     if (!activeProfileId) {
       return (
-        <div className="clay-card card-lavender empty-state animate-fade-in-up">
-          <div className="empty-icon">👤</div>
-          <p>Please create or select a profile to continue.</p>
+        <div className="clay-card card-lavender empty-state animate-fade-in-up" style={{ padding: '54px 36px', textAlign: 'center' }}>
+          <div className="empty-icon" style={{ fontSize: '56px', marginBottom: '16px' }}>🔮</div>
+          <h2 style={{ fontSize: '26px', fontWeight: 900, color: '#2D1B69', marginBottom: '12px' }}>Welcome to WealthLens!</h2>
+          <p style={{ fontSize: '15px', color: '#6B5B95', maxWidth: '540px', margin: '0 auto 28px', lineHeight: 1.6 }}>
+            No profile selected. Create a new investment profile or select an existing one from the top bar to unlock live wealth projections, cashflow simulations, and goal planning.
+          </p>
+          <button 
+            className="btn-simulate"
+            onClick={() => handleCreateDefaultProfile(`${user ? user.username : 'My'}'s Investment Profile`)}
+            style={{ padding: '14px 32px', fontSize: '15px', borderRadius: '50px' }}
+          >
+            ➕ Create Profile & Start Simulation
+          </button>
         </div>
       );
     }
@@ -223,16 +257,27 @@ export default function App() {
       
       <main className="content-shell">
         <nav className="tab-bar">
-          {TABS.map(tab => (
-            <button
-              key={tab.id}
-              className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              <span className="tab-icon">{tab.icon}</span>
-              {tab.label}
-            </button>
-          ))}
+          {TABS.map(tab => {
+            const isDisabled = !activeProfileId && tab.id !== 'dashboard';
+            return (
+              <button
+                key={tab.id}
+                className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+                onClick={() => {
+                  if (!isDisabled) setActiveTab(tab.id);
+                }}
+                disabled={isDisabled}
+                style={{
+                  opacity: isDisabled ? 0.45 : 1,
+                  cursor: isDisabled ? 'not-allowed' : 'pointer'
+                }}
+                title={isDisabled ? 'Please create or select a profile first' : ''}
+              >
+                <span className="tab-icon">{tab.icon}</span>
+                {tab.label}
+              </button>
+            );
+          })}
         </nav>
         
         {renderContent()}

@@ -60,7 +60,7 @@ export default function Profile({ profileId, showToast, onProfileDeleted }) {
       <div className="grid-2">
         <form onSubmit={handleSave}>
           <div className="form-group">
-            <label className="form-label">Family Name</label>
+            <label className="form-label">Profile Name</label>
             <input name="family_name" value={form.family_name} onChange={handleChange} className="form-input" required />
           </div>
           
