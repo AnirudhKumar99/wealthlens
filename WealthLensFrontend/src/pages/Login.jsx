@@ -132,7 +132,7 @@ export default function Login({ onAuthSuccess, showToast }) {
                   type="text"
                   name="username"
                   className="form-input"
-                  placeholder="e.g. Anirudh"
+                  placeholder="e.g. Alex Sharma"
                   value={formData.username}
                   onChange={handleChange}
                   required={isRegister}
