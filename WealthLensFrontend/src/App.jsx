@@ -241,9 +241,6 @@ export default function App() {
               onChange={handleProfileChange}
               onRefresh={loadProfiles}
             />
-            <button className="btn-simulate" onClick={() => runSimulation(false)} disabled={loading || !activeProfileId}>
-              {loading ? 'Wait...' : 'Run Simulation 🚀'}
-            </button>
             <button 
               className="btn-secondary" 
               onClick={handleLogout}
