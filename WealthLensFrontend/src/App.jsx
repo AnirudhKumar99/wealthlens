@@ -152,8 +152,8 @@ export default function App() {
         life_expectancy: 82,
         annual_income: 2160000,
         savings_rate: 35.0,
-        monthly_expenses_retirement: 36500,
-        retirement_inflation_rate: 5.2,
+        monthly_expenses_retirement: 40000,
+        retirement_inflation_rate: 7.0,
         currency: 'INR'
       });
       showToast('🎉 Profile created & auto-populated!');

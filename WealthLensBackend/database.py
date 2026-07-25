@@ -285,7 +285,7 @@ def create_profile(profile_id: str, data: dict):
         (profile_id, data.get('family_name', 'My Profile'), data.get('current_age', 34),
          data.get('retirement_age', 60), data.get('life_expectancy', 82),
          data.get('annual_income', 2160000), data.get('savings_rate', 35.0),
-         data.get('monthly_expenses_retirement', 36500), data.get('retirement_inflation_rate', 5.2),
+         data.get('monthly_expenses_retirement', 40000), data.get('retirement_inflation_rate', 7.0),
          data.get('currency', 'INR'))
     )
     seed_profile_defaults(conn, profile_id)
