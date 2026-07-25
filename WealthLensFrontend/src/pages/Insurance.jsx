@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { api, fmt } from '../api/client';
+import NumberInput from '../components/NumberInput';
 
-export default function Insurance({ showToast }) {
+export default function Insurance({ profileId, showToast }) {
   const [plans, setPlans] = useState([]);
   const [modal, setModal] = useState({ open: false, data: null });
 
   const loadPlans = () => {
-    api.getInsurance().then(setPlans).catch(console.error);
+    if (profileId) api.getInsurance(profileId).then(setPlans).catch(console.error);
   };
 
-  useEffect(() => { loadPlans(); }, []);
+  useEffect(() => { loadPlans(); }, [profileId]);
 
   const totalIncome = plans.reduce((sum, p) => sum + p.annual_income, 0);
   const totalBonus = plans.reduce((sum, p) => sum + p.terminal_bonus, 0);
@@ -29,8 +30,8 @@ export default function Insurance({ showToast }) {
       accidental_rider_amount: Number(fd.get('accidental_rider_amount'))
     };
     try {
-      if (modal.data) await api.updateInsurance(modal.data.id, data);
-      else await api.createInsurance(data);
+      if (modal.data) await api.updateInsurance(profileId, modal.data.id, data);
+      else await api.createInsurance(profileId, data);
       showToast('✅ Insurance saved!');
       setModal({ open: false, data: null });
       loadPlans();
@@ -42,7 +43,7 @@ export default function Insurance({ showToast }) {
   const handleDelete = async (id) => {
     if (confirm('Are you sure you want to delete this insurance plan?')) {
       try {
-        await api.deleteInsurance(id);
+        await api.deleteInsurance(profileId, id);
         showToast('🗑️ Insurance deleted');
         loadPlans();
       } catch (err) {
@@ -54,7 +55,10 @@ export default function Insurance({ showToast }) {
   return (
     <div className="clay-card card-gold">
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: '18px'}}>
-        <h2 className="section-title" style={{margin:0}}><span className="title-icon">🛡️</span> Insurance</h2>
+        <h2 className="section-title" style={{margin:0}}>
+          <span className="title-icon">🛡️</span> Insurance
+          <span className="info-icon" data-tooltip="Track your life, health, and income insurance policies here.">i</span>
+        </h2>
         <button className="btn-primary" onClick={() => setModal({open: true, data: null})}>➕ Add Plan</button>
       </div>
 
@@ -78,11 +82,17 @@ export default function Insurance({ showToast }) {
       <div>
         {plans.map(plan => (
           <div key={plan.id} className="item-row">
-            <div>
+            <div style={{flex: 1}}>
               <div className="item-name">{plan.name}</div>
               <div className="item-sub">
-                Premium: {fmt(plan.annual_premium)}/yr • Income: {fmt(plan.annual_income)} ({plan.income_start_year}-{plan.income_end_year}) • Bonus: {fmt(plan.terminal_bonus)}
+                Pays {fmt(plan.annual_income)}/yr ({plan.income_start_year} - {plan.income_end_year}) • Death Benefit: {fmt(plan.death_benefit)}
               </div>
+            </div>
+            <div style={{ paddingRight: '24px', textAlign: 'right' }}>
+              <div style={{ fontSize: '20px', fontWeight: 900, color: '#2D1B69' }}>
+                {fmt(plan.annual_premium)}<span style={{fontSize: '14px', color: '#9B8EC4'}}>/yr</span>
+              </div>
+              <div className="item-sub" style={{textTransform: 'uppercase', letterSpacing: '0.5px'}}>Premium (Till {plan.premium_end_year})</div>
             </div>
             <div className="item-actions">
               <button className="btn-icon" onClick={() => setModal({open: true, data: plan})}>✏️</button>
@@ -105,7 +115,7 @@ export default function Insurance({ showToast }) {
               <div className="grid-2">
                 <div className="form-group">
                   <label className="form-label">Annual Premium</label>
-                  <input className="form-input" type="number" name="annual_premium" defaultValue={modal.data?.annual_premium || 0} required />
+                  <NumberInput name="annual_premium" defaultValue={modal.data?.annual_premium || 0} required />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Premium End Year</label>
@@ -119,7 +129,7 @@ export default function Insurance({ showToast }) {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Annual Income</label>
-                  <input className="form-input" type="number" name="annual_income" defaultValue={modal.data?.annual_income || 0} required />
+                  <NumberInput name="annual_income" defaultValue={modal.data?.annual_income || 0} required />
                 </div>
               </div>
               <div className="grid-2">
@@ -129,17 +139,17 @@ export default function Insurance({ showToast }) {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Terminal Bonus</label>
-                  <input className="form-input" type="number" name="terminal_bonus" defaultValue={modal.data?.terminal_bonus || 0} required />
+                  <NumberInput name="terminal_bonus" defaultValue={modal.data?.terminal_bonus || 0} required />
                 </div>
               </div>
               <div className="grid-2">
                 <div className="form-group">
                   <label className="form-label">Death Benefit</label>
-                  <input className="form-input" type="number" name="death_benefit" defaultValue={modal.data?.death_benefit || 0} required />
+                  <NumberInput name="death_benefit" defaultValue={modal.data?.death_benefit || 0} required />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Accidental Rider Amt</label>
-                  <input className="form-input" type="number" name="accidental_rider_amount" defaultValue={modal.data?.accidental_rider_amount || 0} required />
+                  <NumberInput name="accidental_rider_amount" defaultValue={modal.data?.accidental_rider_amount || 0} required />
                 </div>
               </div>
               <div className="modal-footer">

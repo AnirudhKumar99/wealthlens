@@ -12,56 +12,76 @@ async function request(method, path, body) {
 }
 
 export const api = {
-  // Profile
-  getProfile: () => request('GET', '/api/profile'),
-  updateProfile: (data) => request('PUT', '/api/profile', data),
+  // --- Profile Management ---
+  getCategories: () => request('GET', '/api/categories'),
+  getActiveProfile: () => request('GET', '/api/profiles/active'),
+  setActiveProfile: (id) => request('PUT', `/api/profiles/active/${id}`),
+  getProfiles: () => request('GET', '/api/profiles'),
+  createProfile: (data) => request('POST', '/api/profiles', data),
+  updateProfile: (id, data) => request('PUT', `/api/profiles/${id}`, data),
+  deleteProfile: (id) => request('DELETE', `/api/profiles/${id}`),
+  getProfile: (id) => request('GET', `/api/profiles/${id}`),
 
+  // --- Scoped Items ---
   // Assets
-  getAssets: () => request('GET', '/api/assets'),
-  createAsset: (data) => request('POST', '/api/assets', data),
-  updateAsset: (id, data) => request('PUT', `/api/assets/${id}`, data),
-  deleteAsset: (id) => request('DELETE', `/api/assets/${id}`),
+  getAssets: (profileId) => request('GET', `/api/profiles/${profileId}/assets`),
+  createAsset: (profileId, data) => request('POST', `/api/profiles/${profileId}/assets`, data),
+  updateAsset: (profileId, id, data) => request('PUT', `/api/profiles/${profileId}/assets/${id}`, data),
+  deleteAsset: (profileId, id) => request('DELETE', `/api/profiles/${profileId}/assets/${id}`),
 
   // Goals
-  getGoals: () => request('GET', '/api/goals'),
-  createGoal: (data) => request('POST', '/api/goals', data),
-  updateGoal: (id, data) => request('PUT', `/api/goals/${id}`, data),
-  deleteGoal: (id) => request('DELETE', `/api/goals/${id}`),
+  getGoals: (profileId) => request('GET', `/api/profiles/${profileId}/goals`),
+  createGoal: (profileId, data) => request('POST', `/api/profiles/${profileId}/goals`, data),
+  updateGoal: (profileId, id, data) => request('PUT', `/api/profiles/${profileId}/goals/${id}`, data),
+  deleteGoal: (profileId, id) => request('DELETE', `/api/profiles/${profileId}/goals/${id}`),
 
   // SIPs
-  getSips: () => request('GET', '/api/sips'),
-  createSip: (data) => request('POST', '/api/sips', data),
-  updateSip: (id, data) => request('PUT', `/api/sips/${id}`, data),
-  deleteSip: (id) => request('DELETE', `/api/sips/${id}`),
+  getSips: (profileId) => request('GET', `/api/profiles/${profileId}/sips`),
+  createSip: (profileId, data) => request('POST', `/api/profiles/${profileId}/sips`, data),
+  updateSip: (profileId, id, data) => request('PUT', `/api/profiles/${profileId}/sips/${id}`, data),
+  deleteSip: (profileId, id) => request('DELETE', `/api/profiles/${profileId}/sips/${id}`),
 
   // Insurance
-  getInsurance: () => request('GET', '/api/insurance'),
-  createInsurance: (data) => request('POST', '/api/insurance', data),
-  updateInsurance: (id, data) => request('PUT', `/api/insurance/${id}`, data),
-  deleteInsurance: (id) => request('DELETE', `/api/insurance/${id}`),
+  getInsurance: (profileId) => request('GET', `/api/profiles/${profileId}/insurance`),
+  createInsurance: (profileId, data) => request('POST', `/api/profiles/${profileId}/insurance`, data),
+  updateInsurance: (profileId, id, data) => request('PUT', `/api/profiles/${profileId}/insurance/${id}`, data),
+  deleteInsurance: (profileId, id) => request('DELETE', `/api/profiles/${profileId}/insurance/${id}`),
 
   // Loans
-  getLoans: () => request('GET', '/api/loans'),
-  createLoan: (data) => request('POST', '/api/loans', data),
-  updateLoan: (id, data) => request('PUT', `/api/loans/${id}`, data),
-  deleteLoan: (id) => request('DELETE', `/api/loans/${id}`),
+  getLoans: (profileId) => request('GET', `/api/profiles/${profileId}/loans`),
+  createLoan: (profileId, data) => request('POST', `/api/profiles/${profileId}/loans`, data),
+  updateLoan: (profileId, id, data) => request('PUT', `/api/profiles/${profileId}/loans/${id}`, data),
+  deleteLoan: (profileId, id) => request('DELETE', `/api/profiles/${profileId}/loans/${id}`),
 
   // Simulation
-  simulate: () => request('POST', '/api/simulate'),
+  simulate: (profileId) => request('POST', `/api/profiles/${profileId}/simulate`),
 };
 
 export function fmt(value, currency = 'INR') {
   const v = Math.abs(Number(value));
   const neg = Number(value) < 0 ? '-' : '';
   if (currency === 'INR') {
-    const sym = '₹';
-    if (v >= 10_000_000) return `${neg}${sym}${(v / 10_000_000).toFixed(1)}Cr`;
-    if (v >= 100_000) return `${neg}${sym}${(v / 100_000).toFixed(1)}L`;
-    return `${neg}${sym}${v.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+    return `${neg}₹${v.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+    return `${neg}$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+  }
+}
+
+export function fmtShort(value, currency = 'INR') {
+  const v = Math.abs(Number(value));
+  const neg = Number(value) < 0 ? '-' : '';
+  const sym = currency === 'INR' ? '₹' : '$';
+
+  if (v === 0) return `${sym}0`;
+
+  if (currency === 'INR') {
+    if (v >= 10000000) return `${neg}${sym}${(v / 10000000).toFixed(1).replace(/\\.0$/, '')}Cr`;
+    if (v >= 100000) return `${neg}${sym}${(v / 100000).toFixed(1).replace(/\\.0$/, '')}L`;
+    if (v >= 1000) return `${neg}${sym}${(v / 1000).toFixed(1).replace(/\\.0$/, '')}k`;
+    return `${neg}${sym}${v}`;
   } else {
-    const sym = '$';
-    if (v >= 1_000_000) return `${neg}${sym}${(v / 1_000_000).toFixed(2)}M`;
-    if (v >= 1_000) return `${neg}${sym}${(v / 1_000).toFixed(1)}K`;
-    return `${neg}${sym}${v.toLocaleString()}`;
+    if (v >= 1000000000) return `${neg}${sym}${(v / 1000000000).toFixed(1).replace(/\\.0$/, '')}B`;
+    if (v >= 1000000) return `${neg}${sym}${(v / 1000000).toFixed(1).replace(/\\.0$/, '')}M`;
+    if (v >= 1000) return `${neg}${sym}${(v / 1000).toFixed(1).replace(/\\.0$/, '')}k`;
+    return `${neg}${sym}${v}`;
   }
 }

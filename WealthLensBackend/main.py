@@ -1,12 +1,15 @@
+import uuid
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import uuid
-
 from models import ProfileModel, AssetItem, GoalItem, SipItem, InsurancePlanItem, LoanItem
-from database import init_db, get_profile, upsert_profile, get_all, insert_item, update_item, delete_item
+from database import (
+    init_db, get_active_profile_id, set_active_profile_id, get_all_profiles,
+    get_profile, create_profile, update_profile, delete_profile,
+    get_items, insert_item, update_item, delete_item, get_categories
+)
 from calculations import run_simulation
 
-app = FastAPI()
+app = FastAPI(title="WealthLens API 2.0 (Multi-Profile)")
 
 app.add_middleware(
     CORSMiddleware,
@@ -17,142 +20,108 @@ app.add_middleware(
 )
 
 @app.on_event("startup")
-def startup_event():
+def startup_db():
     init_db()
 
 @app.get("/")
 def read_root():
-    return {"message": "WealthLens API 2.0", "docs": "/docs"}
+    return {"message": "WealthLens API 2.0 (Multi-Profile)", "docs": "/docs"}
 
-# --- Profile ---
-@app.get("/api/profile", response_model=ProfileModel)
-def read_profile():
-    return get_profile()
+@app.get("/api/categories")
+def api_get_categories():
+    return get_categories()
 
-@app.put("/api/profile")
-def update_profile(profile: ProfileModel):
-    upsert_profile(profile.model_dump())
-    return {"message": "Profile updated successfully"}
+# --- Profile Management ---
+@app.get("/api/profiles/active")
+def api_get_active_profile():
+    pid = get_active_profile_id()
+    return {"active_profile_id": pid}
 
-# --- Assets ---
-@app.get("/api/assets", response_model=list[AssetItem])
-def get_assets():
-    return get_all("assets")
+@app.put("/api/profiles/active/{profile_id}")
+def api_set_active_profile(profile_id: str):
+    if not get_profile(profile_id):
+        raise HTTPException(status_code=404, detail="Profile not found")
+    set_active_profile_id(profile_id)
+    return {"message": "Active profile updated", "active_profile_id": profile_id}
 
-@app.post("/api/assets", response_model=AssetItem)
-def create_asset(item: AssetItem):
-    if not item.id:
-        item.id = str(uuid.uuid4())
-    insert_item("assets", item.model_dump())
-    return item
+@app.get("/api/profiles")
+def api_get_profiles():
+    return get_all_profiles()
 
-@app.put("/api/assets/{item_id}", response_model=AssetItem)
-def update_asset(item_id: str, item: AssetItem):
-    update_item("assets", item_id, item.model_dump())
-    return item
+@app.post("/api/profiles")
+def api_create_profile(data: ProfileModel):
+    pid = str(uuid.uuid4())
+    create_profile(pid, data.model_dump(exclude={"id"}))
+    set_active_profile_id(pid)
+    return {"message": "Profile created", "id": pid}
 
-@app.delete("/api/assets/{item_id}")
-def delete_asset(item_id: str):
-    delete_item("assets", item_id)
-    return {"message": "Asset deleted"}
+@app.put("/api/profiles/{profile_id}")
+def api_update_profile(profile_id: str, data: ProfileModel):
+    if not get_profile(profile_id):
+        raise HTTPException(status_code=404, detail="Profile not found")
+    update_profile(profile_id, data.model_dump(exclude={"id"}))
+    return {"message": "Profile updated"}
 
-# --- Goals ---
-@app.get("/api/goals", response_model=list[GoalItem])
-def get_goals():
-    return get_all("goals")
+@app.delete("/api/profiles/{profile_id}")
+def api_delete_profile(profile_id: str):
+    if not get_profile(profile_id):
+        raise HTTPException(status_code=404, detail="Profile not found")
+    delete_profile(profile_id)
+    return {"message": "Profile deleted"}
 
-@app.post("/api/goals", response_model=GoalItem)
-def create_goal(item: GoalItem):
-    if not item.id:
-        item.id = str(uuid.uuid4())
-    insert_item("goals", item.model_dump())
-    return item
+@app.get("/api/profiles/{profile_id}")
+def api_get_profile(profile_id: str):
+    p = get_profile(profile_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return p
 
-@app.put("/api/goals/{item_id}", response_model=GoalItem)
-def update_goal(item_id: str, item: GoalItem):
-    update_item("goals", item_id, item.model_dump())
-    return item
 
-@app.delete("/api/goals/{item_id}")
-def delete_goal(item_id: str):
-    delete_item("goals", item_id)
-    return {"message": "Goal deleted"}
+# --- Scoped CRUD Helpers ---
+def scoped_crud(router, prefix, table_name, model_class):
+    
+    @router.get(f"/api/profiles/{{profile_id}}/{prefix}")
+    def _get_all(profile_id: str):
+        return get_items(table_name, profile_id)
+        
+    @router.post(f"/api/profiles/{{profile_id}}/{prefix}")
+    def _create(profile_id: str, data: model_class):
+        item_id = str(uuid.uuid4())
+        dumped = data.model_dump()
+        dumped['id'] = item_id
+        dumped['profile_id'] = profile_id
+        insert_item(table_name, dumped)
+        return {"id": item_id, "message": "Created"}
+        
+    @router.put(f"/api/profiles/{{profile_id}}/{prefix}/{{item_id}}")
+    def _update(profile_id: str, item_id: str, data: model_class):
+        update_item(table_name, item_id, profile_id, data.model_dump())
+        return {"message": "Updated"}
+        
+    @router.delete(f"/api/profiles/{{profile_id}}/{prefix}/{{item_id}}")
+    def _delete(profile_id: str, item_id: str):
+        delete_item(table_name, item_id, profile_id)
+        return {"message": "Deleted"}
 
-# --- SIPs ---
-@app.get("/api/sips", response_model=list[SipItem])
-def get_sips():
-    return get_all("sips")
+scoped_crud(app, "assets", "assets", AssetItem)
+scoped_crud(app, "goals", "goals", GoalItem)
+scoped_crud(app, "sips", "sips", SipItem)
+scoped_crud(app, "insurance", "insurance_plans", InsurancePlanItem)
+scoped_crud(app, "loans", "loans", LoanItem)
 
-@app.post("/api/sips", response_model=SipItem)
-def create_sip(item: SipItem):
-    if not item.id:
-        item.id = str(uuid.uuid4())
-    insert_item("sips", item.model_dump())
-    return item
 
-@app.put("/api/sips/{item_id}", response_model=SipItem)
-def update_sip(item_id: str, item: SipItem):
-    update_item("sips", item_id, item.model_dump())
-    return item
-
-@app.delete("/api/sips/{item_id}")
-def delete_sip(item_id: str):
-    delete_item("sips", item_id)
-    return {"message": "SIP deleted"}
-
-# --- Insurance ---
-@app.get("/api/insurance", response_model=list[InsurancePlanItem])
-def get_insurance():
-    return get_all("insurance_plans")
-
-@app.post("/api/insurance", response_model=InsurancePlanItem)
-def create_insurance(item: InsurancePlanItem):
-    if not item.id:
-        item.id = str(uuid.uuid4())
-    insert_item("insurance_plans", item.model_dump())
-    return item
-
-@app.put("/api/insurance/{item_id}", response_model=InsurancePlanItem)
-def update_insurance(item_id: str, item: InsurancePlanItem):
-    update_item("insurance_plans", item_id, item.model_dump())
-    return item
-
-@app.delete("/api/insurance/{item_id}")
-def delete_insurance(item_id: str):
-    delete_item("insurance_plans", item_id)
-    return {"message": "Insurance deleted"}
-
-# --- Loans ---
-@app.get("/api/loans", response_model=list[LoanItem])
-def get_loans():
-    return get_all("loans")
-
-@app.post("/api/loans", response_model=LoanItem)
-def create_loan(item: LoanItem):
-    if not item.id:
-        item.id = str(uuid.uuid4())
-    insert_item("loans", item.model_dump())
-    return item
-
-@app.put("/api/loans/{item_id}", response_model=LoanItem)
-def update_loan(item_id: str, item: LoanItem):
-    update_item("loans", item_id, item.model_dump())
-    return item
-
-@app.delete("/api/loans/{item_id}")
-def delete_loan(item_id: str):
-    delete_item("loans", item_id)
-    return {"message": "Loan deleted"}
-
-# --- Simulate ---
-@app.post("/api/simulate")
-def simulate():
-    profile = get_profile()
-    assets = get_all("assets")
-    goals = get_all("goals")
-    sips = get_all("sips")
-    insurance = get_all("insurance_plans")
-    loans = get_all("loans")
+# --- Simulation ---
+@app.post("/api/profiles/{profile_id}/simulate")
+def api_simulate(profile_id: str):
+    profile = get_profile(profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+        
+    assets = get_items("assets", profile_id)
+    goals = get_items("goals", profile_id)
+    sips = get_items("sips", profile_id)
+    insurance = get_items("insurance_plans", profile_id)
+    loans = get_items("loans", profile_id)
     
     return run_simulation(
         profile=profile,

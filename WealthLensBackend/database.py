@@ -1,37 +1,52 @@
 """
-database.py — SQLite persistence layer for WealthLens 2.0
+database.py — SQLite persistence layer for WealthLens 2.0 (Multi-profile)
 """
 import sqlite3
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 DB_PATH = Path(__file__).parent / "wealth.db"
 
 def get_conn():
     conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA foreign_keys = ON")
     conn.row_factory = sqlite3.Row
     return conn
 
 def init_db():
-    """Create all tables and seed default profile."""
+    """Create all tables with FKs and cascades."""
     conn = get_conn()
     c = conn.cursor()
     
-    c.execute("""CREATE TABLE IF NOT EXISTS profile (
-        id INTEGER PRIMARY KEY,
-        family_name TEXT DEFAULT 'My Family',
+    c.execute("""CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )""")
+    
+    c.execute("""CREATE TABLE IF NOT EXISTS profiles (
+        id TEXT PRIMARY KEY,
+        family_name TEXT NOT NULL DEFAULT 'My Family',
         current_age INTEGER DEFAULT 35,
         retirement_age INTEGER DEFAULT 60,
         life_expectancy INTEGER DEFAULT 85,
         annual_income REAL DEFAULT 0,
         savings_rate REAL DEFAULT 30,
         monthly_expenses_retirement REAL DEFAULT 60000,
-        currency TEXT DEFAULT 'INR'
+        retirement_inflation_rate REAL DEFAULT 6.0,
+        currency TEXT DEFAULT 'INR',
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
     )""")
+    
+    try:
+        c.execute("ALTER TABLE profiles ADD COLUMN retirement_inflation_rate REAL DEFAULT 6.0")
+    except Exception:
+        pass
     
     c.execute("""CREATE TABLE IF NOT EXISTS assets (
         id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
         name TEXT,
         asset_class TEXT DEFAULT 'equity',
         value REAL DEFAULT 0,
@@ -40,17 +55,20 @@ def init_db():
     
     c.execute("""CREATE TABLE IF NOT EXISTS goals (
         id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
         name TEXT,
         priority TEXT DEFAULT 'need',
         present_value REAL DEFAULT 0,
         target_year INTEGER DEFAULT 2030,
         inflation_rate REAL DEFAULT 6,
         goal_type TEXT DEFAULT 'lump_sum',
-        recurring_frequency INTEGER
+        duration_years INTEGER DEFAULT 1,
+        step_up_pct REAL DEFAULT 0
     )""")
     
     c.execute("""CREATE TABLE IF NOT EXISTS sips (
         id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
         name TEXT,
         asset_class TEXT DEFAULT 'equity',
         monthly_amount REAL DEFAULT 0,
@@ -62,6 +80,7 @@ def init_db():
     
     c.execute("""CREATE TABLE IF NOT EXISTS insurance_plans (
         id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
         name TEXT DEFAULT 'Insurance Plan',
         annual_premium REAL DEFAULT 0,
         premium_end_year INTEGER DEFAULT 2033,
@@ -75,6 +94,7 @@ def init_db():
     
     c.execute("""CREATE TABLE IF NOT EXISTS loans (
         id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
         name TEXT DEFAULT 'Home Loan',
         loan_type TEXT DEFAULT 'home',
         principal REAL DEFAULT 0,
@@ -83,65 +103,196 @@ def init_db():
         emis_paid INTEGER DEFAULT 0
     )""")
     
-    # Seed default profile if empty
-    if c.execute('SELECT COUNT(*) FROM profile').fetchone()[0] == 0:
-        c.execute("""INSERT INTO profile (family_name, current_age, retirement_age, life_expectancy,
-            annual_income, savings_rate, monthly_expenses_retirement, currency)
-            VALUES ('My Family', 35, 60, 85, 0, 30, 60000, 'INR')""")
+    c.execute("""CREATE TABLE IF NOT EXISTS categories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category_type TEXT NOT NULL,
+        code TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        UNIQUE(category_type, code)
+    )""")
     
+    # Initialize settings if empty
+    if c.execute("SELECT COUNT(*) FROM settings WHERE key='active_profile_id'").fetchone()[0] == 0:
+        c.execute("INSERT INTO settings (key, value) VALUES ('active_profile_id', NULL)")
+        
+    # Seed categories if empty
+    if c.execute("SELECT COUNT(*) FROM categories").fetchone()[0] == 0:
+        default_categories = [
+            ('asset_class', 'equity', 'Equity'),
+            ('asset_class', 'debt', 'Debt'),
+            ('asset_class', 'gold', 'Gold'),
+            ('asset_class', 'real_estate', 'Real Estate'),
+            ('goal_priority', 'critical', 'Critical'),
+            ('goal_priority', 'need', 'Need'),
+            ('goal_priority', 'want', 'Want'),
+            ('loan_type', 'home', 'Home Loan'),
+            ('loan_type', 'car', 'Car Loan'),
+            ('loan_type', 'education', 'Education Loan'),
+            ('loan_type', 'personal', 'Personal Loan'),
+        ]
+        c.executemany("INSERT INTO categories (category_type, code, display_name) VALUES (?, ?, ?)", default_categories)
+        
+    # Seed robust middle-class profile if no profiles exist
+    if c.execute("SELECT COUNT(*) FROM profiles").fetchone()[0] == 0:
+        import uuid
+        import datetime
+        now = datetime.datetime.now().isoformat()
+        profile_id = str(uuid.uuid4())
+        
+        c.execute("""INSERT INTO profiles (id, family_name, current_age, retirement_age, life_expectancy, annual_income, savings_rate, monthly_expenses_retirement, retirement_inflation_rate, currency, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", 
+                     (profile_id, 'Sharma Family', 35, 60, 85, 2500000, 30, 80000, 6.0, 'INR', now, now))
+        
+        # Set as active
+        c.execute("UPDATE settings SET value=? WHERE key='active_profile_id'", (profile_id,))
+        
+        # Seed Assets
+        assets = [
+            (str(uuid.uuid4()), profile_id, 'EPF Balance', 'debt', 1800000, 8.1),
+            (str(uuid.uuid4()), profile_id, 'PPF Account', 'debt', 700000, 7.1),
+            (str(uuid.uuid4()), profile_id, 'Equity Mutual Funds', 'equity', 3500000, 12),
+            (str(uuid.uuid4()), profile_id, 'Company RSUs', 'equity', 600000, 10),
+            (str(uuid.uuid4()), profile_id, 'Emergency Fund (FD)', 'debt', 400000, 6.5)
+        ]
+        c.executemany("INSERT INTO assets (id, profile_id, name, asset_class, value, return_rate) VALUES (?, ?, ?, ?, ?, ?)", assets)
+        
+        # Seed Goals
+        curr_year = datetime.datetime.now().year
+        goals = [
+            (str(uuid.uuid4()), profile_id, 'Car Upgrade', 'want', 1200000, curr_year + 4, 5, 'lump_sum', 1, 0),
+            (str(uuid.uuid4()), profile_id, 'Dream Home Downpayment', 'need', 3000000, curr_year + 6, 6, 'lump_sum', 1, 0),
+            (str(uuid.uuid4()), profile_id, 'Elder Child College', 'critical', 1600000, curr_year + 12, 7, 'recurring', 4, 8),
+            (str(uuid.uuid4()), profile_id, 'Younger Child College', 'critical', 1600000, curr_year + 15, 7, 'recurring', 4, 8),
+            (str(uuid.uuid4()), profile_id, 'Elder Child Marriage', 'want', 2000000, curr_year + 19, 6, 'lump_sum', 1, 0)
+        ]
+        c.executemany("INSERT INTO goals (id, profile_id, name, priority, present_value, target_year, inflation_rate, goal_type, duration_years, step_up_pct) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", goals)
+        
+        # Seed SIPs
+        sips = [
+            (str(uuid.uuid4()), profile_id, 'Index Fund SIP', 'equity', 25000, 8, 12, curr_year, curr_year + 20),
+            (str(uuid.uuid4()), profile_id, 'Flexicap Fund', 'equity', 15000, 8, 13, curr_year, curr_year + 15),
+            (str(uuid.uuid4()), profile_id, 'PPF Annual (Monthly Avg)', 'debt', 10000, 5, 7.1, curr_year, curr_year + 15),
+            (str(uuid.uuid4()), profile_id, 'Child Education Fund', 'equity', 10000, 8, 12, curr_year, curr_year + 12)
+        ]
+        c.executemany("INSERT INTO sips (id, profile_id, name, asset_class, monthly_amount, step_up_pct, return_rate, start_year, end_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", sips)
+        
+        # Seed Loans
+        loans = [
+            (str(uuid.uuid4()), profile_id, 'Home Loan', 'home', 3500000, 240, 8.5, 84),
+            (str(uuid.uuid4()), profile_id, 'Car Loan', 'car', 300000, 60, 9.5, 36)
+        ]
+        c.executemany("INSERT INTO loans (id, profile_id, name, loan_type, principal, total_months, roi_pct, emis_paid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", loans)
+        
+        # Seed Insurance Plans
+        insurance = [
+            (str(uuid.uuid4()), profile_id, 'Term Life Insurance', 25000, curr_year + 30, curr_year + 31, 0, curr_year + 31, 0, 20000000, 5000000),
+            (str(uuid.uuid4()), profile_id, 'Guaranteed Income Plan', 50000, curr_year + 7, curr_year + 10, 100000, curr_year + 25, 200000, 1000000, 500000)
+        ]
+        c.executemany("INSERT INTO insurance_plans (id, profile_id, name, annual_premium, premium_end_year, income_start_year, annual_income, income_end_year, terminal_bonus, death_benefit, accidental_rider) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", insurance)
     conn.commit()
     conn.close()
 
-
-def get_profile() -> dict:
+# --- Active Profile Settings ---
+def get_active_profile_id() -> Optional[str]:
     conn = get_conn()
-    row = conn.execute('SELECT * FROM profile WHERE id=1').fetchone()
+    row = conn.execute("SELECT value FROM settings WHERE key='active_profile_id'").fetchone()
     conn.close()
-    return dict(row) if row else {}
+    return row['value'] if row and row['value'] else None
 
-
-def upsert_profile(data: dict):
+def set_active_profile_id(profile_id: Optional[str]):
     conn = get_conn()
-    conn.execute("""UPDATE profile SET
-        family_name=?, current_age=?, retirement_age=?, life_expectancy=?,
-        annual_income=?, savings_rate=?, monthly_expenses_retirement=?, currency=?
-        WHERE id=1""",
-        (data.get('family_name', 'My Family'), data.get('current_age', 35),
+    conn.execute("UPDATE settings SET value=? WHERE key='active_profile_id'", (profile_id,))
+    conn.commit()
+    conn.close()
+
+def get_categories() -> list[dict]:
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM categories ORDER BY category_type, id").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+# --- Profiles CRUD ---
+def get_all_profiles() -> list[dict]:
+    conn = get_conn()
+    rows = conn.execute("SELECT id, family_name, created_at FROM profiles ORDER BY created_at DESC").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def get_profile(profile_id: str) -> Optional[dict]:
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM profiles WHERE id=?", (profile_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def create_profile(profile_id: str, data: dict):
+    conn = get_conn()
+    conn.execute("""INSERT INTO profiles 
+        (id, family_name, current_age, retirement_age, life_expectancy, annual_income, savings_rate, monthly_expenses_retirement, retirement_inflation_rate, currency)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (profile_id, data.get('family_name', 'My Family'), data.get('current_age', 35),
          data.get('retirement_age', 60), data.get('life_expectancy', 85),
          data.get('annual_income', 0), data.get('savings_rate', 30),
-         data.get('monthly_expenses_retirement', 60000), data.get('currency', 'INR'))
+         data.get('monthly_expenses_retirement', 60000), data.get('retirement_inflation_rate', 6.0),
+         data.get('currency', 'INR'))
     )
     conn.commit()
     conn.close()
 
-
-def get_all(table: str) -> list[dict]:
+def update_profile(profile_id: str, data: dict):
     conn = get_conn()
-    rows = conn.execute(f'SELECT * FROM {table}').fetchall()
+    conn.execute("""UPDATE profiles SET
+        family_name=?, current_age=?, retirement_age=?, life_expectancy=?,
+        annual_income=?, savings_rate=?, monthly_expenses_retirement=?, retirement_inflation_rate=?, currency=?,
+        updated_at=datetime('now')
+        WHERE id=?""",
+        (data.get('family_name', 'My Family'), data.get('current_age', 35),
+         data.get('retirement_age', 60), data.get('life_expectancy', 85),
+         data.get('annual_income', 0), data.get('savings_rate', 30),
+         data.get('monthly_expenses_retirement', 60000), data.get('retirement_inflation_rate', 6.0),
+         data.get('currency', 'INR'),
+         profile_id)
+    )
+    conn.commit()
+    conn.close()
+
+def delete_profile(profile_id: str):
+    conn = get_conn()
+    # This will cascade delete assets, goals, etc. because of ON DELETE CASCADE
+    conn.execute("DELETE FROM profiles WHERE id=?", (profile_id,))
+    # Clear active if we deleted the active one
+    active = conn.execute("SELECT value FROM settings WHERE key='active_profile_id'").fetchone()
+    if active and active['value'] == profile_id:
+        conn.execute("UPDATE settings SET value=NULL WHERE key='active_profile_id'")
+    conn.commit()
+    conn.close()
+
+# --- Generic Profile-Scoped Item CRUD ---
+def get_items(table: str, profile_id: str) -> list[dict]:
+    conn = get_conn()
+    rows = conn.execute(f"SELECT * FROM {table} WHERE profile_id=?", (profile_id,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
-
 
 def insert_item(table: str, data: dict):
     conn = get_conn()
     cols = ', '.join(data.keys())
     placeholders = ', '.join(['?'] * len(data))
-    conn.execute(f'INSERT INTO {table} ({cols}) VALUES ({placeholders})', list(data.values()))
+    conn.execute(f"INSERT INTO {table} ({cols}) VALUES ({placeholders})", list(data.values()))
     conn.commit()
     conn.close()
 
-
-def update_item(table: str, item_id: str, data: dict):
+def update_item(table: str, item_id: str, profile_id: str, data: dict):
     conn = get_conn()
-    sets = ', '.join([f'{k}=?' for k in data.keys() if k != 'id'])
-    vals = [v for k, v in data.items() if k != 'id'] + [item_id]
-    conn.execute(f'UPDATE {table} SET {sets} WHERE id=?', vals)
+    # Exclude id and profile_id from update
+    update_data = {k: v for k, v in data.items() if k not in ('id', 'profile_id')}
+    sets = ', '.join([f"{k}=?" for k in update_data.keys()])
+    vals = list(update_data.values()) + [item_id, profile_id]
+    conn.execute(f"UPDATE {table} SET {sets} WHERE id=? AND profile_id=?", vals)
     conn.commit()
     conn.close()
 
-
-def delete_item(table: str, item_id: str):
+def delete_item(table: str, item_id: str, profile_id: str):
     conn = get_conn()
-    conn.execute(f'DELETE FROM {table} WHERE id=?', (item_id,))
+    conn.execute(f"DELETE FROM {table} WHERE id=? AND profile_id=?", (item_id, profile_id))
     conn.commit()
     conn.close()

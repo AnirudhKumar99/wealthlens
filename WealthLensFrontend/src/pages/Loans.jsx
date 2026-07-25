@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { api, fmt } from '../api/client';
+import NumberInput from '../components/NumberInput';
 
-export default function Loans({ showToast }) {
+export default function Loans({ profileId, showToast, categories = [] }) {
   const [loans, setLoans] = useState([]);
   const [modal, setModal] = useState({ open: false, data: null });
+  const [filter, setFilter] = useState('all');
 
   const loadLoans = () => {
-    api.getLoans().then(setLoans).catch(console.error);
+    if (profileId) api.getLoans(profileId).then(setLoans).catch(console.error);
   };
 
-  useEffect(() => { loadLoans(); }, []);
+  useEffect(() => { loadLoans(); }, [profileId]);
 
-  const totalPrincipal = loans.reduce((sum, l) => sum + l.principal, 0);
+  const filteredLoans = filter === 'all' ? loans : loans.filter(l => l.loan_type === filter);
+  const totalPrincipal = filteredLoans.reduce((sum, l) => sum + l.principal, 0);
   
   const calculateEMI = (principal, roiPct, months) => {
     if (!principal || !months) return 0;
@@ -20,7 +23,16 @@ export default function Loans({ showToast }) {
     return principal * r * Math.pow(1 + r, months) / (Math.pow(1 + r, months) - 1);
   };
 
-  const totalEMI = loans.reduce((sum, l) => sum + calculateEMI(l.principal, l.roi_pct, l.total_months), 0);
+  const calculateOutstanding = (principal, roiPct, totalMonths, emisPaid) => {
+    if (emisPaid >= totalMonths) return 0;
+    const emi = calculateEMI(principal, roiPct, totalMonths);
+    if (roiPct === 0) return principal - (emi * emisPaid);
+    const r = roiPct / 1200;
+    return principal * (Math.pow(1 + r, totalMonths) - Math.pow(1 + r, emisPaid)) / (Math.pow(1 + r, totalMonths) - 1);
+  };
+
+  const totalEMI = filteredLoans.reduce((sum, l) => sum + calculateEMI(l.principal, l.roi_pct, l.total_months), 0);
+  const totalOutstanding = filteredLoans.reduce((sum, l) => sum + calculateOutstanding(l.principal, l.roi_pct, l.total_months, l.emis_paid), 0);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -34,8 +46,8 @@ export default function Loans({ showToast }) {
       emis_paid: Number(fd.get('emis_paid'))
     };
     try {
-      if (modal.data) await api.updateLoan(modal.data.id, data);
-      else await api.createLoan(data);
+      if (modal.data) await api.updateLoan(profileId, modal.data.id, data);
+      else await api.createLoan(profileId, data);
       showToast('✅ Loan saved!');
       setModal({ open: false, data: null });
       loadLoans();
@@ -47,7 +59,7 @@ export default function Loans({ showToast }) {
   const handleDelete = async (id) => {
     if (confirm('Are you sure you want to delete this loan?')) {
       try {
-        await api.deleteLoan(id);
+        await api.deleteLoan(profileId, id);
         showToast('🗑️ Loan deleted');
         loadLoans();
       } catch (err) {
@@ -58,31 +70,42 @@ export default function Loans({ showToast }) {
 
   return (
     <div className="clay-card card-green">
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: '18px'}}>
-        <h2 className="section-title" style={{margin:0}}><span className="title-icon">🏦</span> Loans</h2>
-        <button className="btn-primary" onClick={() => setModal({open: true, data: null})}>➕ Add Loan</button>
+      <div style={{display:'flex', flexWrap: 'wrap', justifyContent:'space-between', alignItems:'center', gap: '10px', marginBottom: '18px'}}>
+        <h2 className="section-title" style={{margin:0}}>
+          <span className="title-icon">🏦</span> Loans
+          <span className="info-icon" data-tooltip="Track your active debt. EMI payments will automatically pull from your projected cash flow.">i</span>
+        </h2>
+        <div style={{display: 'flex', gap: '10px', flexWrap: 'nowrap', alignItems: 'center'}}>
+          <select className="form-input" style={{padding: '0 16px', borderRadius: '50px', minWidth: '130px', height: '38px'}} value={filter} onChange={e => setFilter(e.target.value)}>
+            <option value="all">All Types</option>
+            {categories.filter(c => c.category_type === 'loan_type').map(c => (
+              <option key={c.code} value={c.code}>{c.display_name}</option>
+            ))}
+          </select>
+          <button className="btn-primary" style={{height: '38px', display: 'flex', alignItems: 'center', whiteSpace: 'nowrap'}} onClick={() => setModal({open: true, data: null})}>➕ Add Loan</button>
+        </div>
       </div>
 
       <div className="kpi-grid">
         <div className="kpi-card">
           <div className="kpi-label">📉 Total Debt</div>
+          <div className="kpi-value">{fmt(totalOutstanding)}</div>
+          <div className="kpi-sub">Current Outstanding</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">📊 Original Loan</div>
           <div className="kpi-value">{fmt(totalPrincipal)}</div>
-          <div className="kpi-sub">Principal Amount</div>
+          <div className="kpi-sub">Total Sanctioned</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-label">💸 Monthly EMI</div>
           <div className="kpi-value">{fmt(totalEMI)}</div>
           <div className="kpi-sub">Total Outflow</div>
         </div>
-        <div className="kpi-card">
-          <div className="kpi-label">📋 Loan Count</div>
-          <div className="kpi-value">{loans.length}</div>
-          <div className="kpi-sub">Active Loans</div>
-        </div>
       </div>
 
       <div>
-        {loans.map(loan => {
+        {filteredLoans.map(loan => {
           const emi = calculateEMI(loan.principal, loan.roi_pct, loan.total_months);
           const progress = Math.min(100, Math.max(0, (loan.emis_paid / loan.total_months) * 100));
           const remainingMonths = loan.total_months - loan.emis_paid;
@@ -92,10 +115,24 @@ export default function Loans({ showToast }) {
           return (
             <div key={loan.id} className="item-row" style={{flexDirection: 'column', alignItems: 'stretch'}}>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
-                <div>
-                  <div className="item-name">{loan.name} <span className="badge badge-debt">{loan.loan_type}</span></div>
-                  <div className="item-sub">Principal: {fmt(loan.principal)} • ROI: {loan.roi_pct}% • EMI: {fmt(emi)}/mo</div>
-                  <div className="item-sub" style={{marginTop: '4px'}}>Ends: {completionYear} ({remainingMonths} months left)</div>
+                <div style={{flex: 1}}>
+                  <div className="item-name">{loan.name}</div>
+                  <div className="item-sub">
+                    {loan.roi_pct}% ROI • {loan.emis_paid} / {loan.total_months} EMIs Paid • {fmt(emi)}/mo • Ends: {completionYear}
+                  </div>
+                </div>
+                <div style={{ paddingRight: '24px', textAlign: 'right', display: 'flex', alignItems: 'center', gap: '20px' }}>
+                  <div style={{ width: '130px', textAlign: 'right' }}>
+                    <span className="badge badge-debt">
+                      {categories.find(c => c.category_type === 'loan_type' && c.code === loan.loan_type)?.display_name || loan.loan_type}
+                    </span>
+                  </div>
+                  <div style={{ minWidth: '130px', textAlign: 'right' }}>
+                    <div style={{ fontSize: '20px', fontWeight: 900, color: '#2D1B69' }}>
+                      {fmt(loan.principal)}
+                    </div>
+                    <div className="item-sub" style={{textTransform: 'uppercase', letterSpacing: '0.5px'}}>Principal</div>
+                  </div>
                 </div>
                 <div className="item-actions">
                   <button className="btn-icon" onClick={() => setModal({open: true, data: loan})}>✏️</button>
@@ -123,22 +160,20 @@ export default function Loans({ showToast }) {
               </div>
               <div className="form-group">
                 <label className="form-label">Loan Type</label>
-                <select className="form-input" name="loan_type" defaultValue={modal.data?.loan_type || 'personal'}>
-                  <option value="home">Home</option>
-                  <option value="car">Car</option>
-                  <option value="personal">Personal</option>
-                  <option value="education">Education</option>
-                  <option value="other">Other</option>
+                <select className="form-input" name="loan_type" defaultValue={modal.data?.loan_type || 'home'}>
+                  {categories.filter(c => c.category_type === 'loan_type').map(c => (
+                    <option key={c.code} value={c.code}>{c.display_name}</option>
+                  ))}
                 </select>
               </div>
               <div className="grid-2">
                 <div className="form-group">
                   <label className="form-label">Principal Amount</label>
-                  <input className="form-input" type="number" name="principal" defaultValue={modal.data?.principal || ''} required />
+                  <NumberInput name="principal" defaultValue={modal.data?.principal || ''} required />
                 </div>
                 <div className="form-group">
                   <label className="form-label">ROI (%)</label>
-                  <input className="form-input" type="number" step="0.1" name="roi_pct" defaultValue={modal.data?.roi_pct || 9} required />
+                  <input className="form-input" type="number" step="0.01" name="roi_pct" defaultValue={modal.data?.roi_pct || 9} required />
                 </div>
               </div>
               <div className="grid-2">

@@ -92,13 +92,17 @@ def build_outflow_schedule(goals: list, base_year: int, end_year: int) -> dict:
             schedule[target_year] = schedule.get(target_year, 0.0) + fv
 
         elif gtype == "recurring":
-            freq = max(1, int(goal.get("recurring_frequency") or 2))
-            year = target_year
-            while year <= end_year:
-                t  = max(0, year - base_year)
-                fv = calculate_future_value(pv, r_inf, t)
-                schedule[year] = schedule.get(year, 0.0) + fv
-                year += freq
+            duration = max(1, int(goal.get("duration_years") or 1))
+            step_up = float(goal.get("step_up_pct") or 0.0) / 100.0
+            
+            t = max(0, target_year - base_year)
+            base_payout = calculate_future_value(pv, r_inf, t)
+            
+            for i in range(duration):
+                year = target_year + i
+                if year <= end_year:
+                    payout = base_payout * ((1 + step_up) ** i)
+                    schedule[year] = schedule.get(year, 0.0) + payout
 
     return schedule
 
@@ -359,8 +363,12 @@ def run_simulation(profile: dict, assets: list, goals: list,
     retire_age    = int(profile.get("retirement_age") or 60)
     life_exp      = min(int(profile.get("life_expectancy") or 85), 90)
     annual_income = float(profile.get("annual_income") or 0)
-    monthly_exp_r = float(profile.get("monthly_expenses_retirement") or 60_000)
-    retire_inf     = 0.06  # 6% p.a. expense inflation in retirement
+    monthly_exp_today = float(profile.get("monthly_expenses_retirement") or 60_000)
+    retire_inf        = float(profile.get("retirement_inflation_rate") or 6.0) / 100.0
+
+    # Inflate present value retirement expense to starting expense at retirement age
+    yrs_to_retire = max(0, retire_age - start_age)
+    monthly_exp_r_start = monthly_exp_today * ((1 + retire_inf) ** yrs_to_retire)
 
     # Derive effective savings strictly from listed SIPs / regular investments
     total_annual_sips = sum(float(s.get("monthly_amount") or 0) * 12.0 for s in (sips or []))
@@ -382,6 +390,7 @@ def run_simulation(profile: dict, assets: list, goals: list,
     yearly_data: list[dict] = []
     cumulative_out      = 0.0
     cumulative_loan_out = 0.0
+    cumulative_sip_in   = 0.0
     port_at_retire  = 0.0
     longevity_year  = None   # None = portfolio survives the entire simulation window
     longevity_age   = None
@@ -395,8 +404,11 @@ def run_simulation(profile: dict, assets: list, goals: list,
         portfolio = portfolio * (1 + blended_r)
 
         # 2. Active SIP contributions (pre-retirement only)
+        annual_sip = 0.0
         if age < retire_age:
-            portfolio += _compute_sip_annual(sips or [], year, base_year)
+            annual_sip = _compute_sip_annual(sips or [], year, base_year)
+            portfolio += annual_sip
+            cumulative_sip_in += annual_sip
 
         # 3. Guaranteed insurance plan income (active for any year in income window)
         ins_income = _compute_insurance_income(insurance_plans or [], year)
@@ -409,11 +421,11 @@ def run_simulation(profile: dict, assets: list, goals: list,
         # 5. Discrete goal outflows from schedule
         goal_out = float(outflow_sched.get(year, 0.0))
 
-        # 6. Retirement living expenses — inflation-adjusted at retire_inf per year
+        # 6. Retirement living expenses — inflated to retirement age then compounded annually
         retire_out = 0.0
         if age >= retire_age:
             yrs_retired = age - retire_age
-            retire_out = monthly_exp_r * 12 * ((1 + retire_inf) ** yrs_retired)
+            retire_out = monthly_exp_r_start * 12 * ((1 + retire_inf) ** yrs_retired)
 
         total_out   = goal_out + retire_out + loan_out
         portfolio  -= total_out
@@ -429,6 +441,35 @@ def run_simulation(profile: dict, assets: list, goals: list,
             longevity_age  = age
             exhausted      = True
 
+        # Track goals triggering this year
+        year_goals = []
+        for g in (goals or []):
+            start = int(g.get("target_year") or year)
+            gtype = g.get("goal_type", "lump_sum")
+            duration = int(g.get("duration_years") or 1) if gtype == "recurring" else 1
+            if start <= year < start + duration:
+                # Add year indicator if recurring
+                year_label = f" (Yr {year - start + 1}/{duration})" if duration > 1 else ""
+                name = g.get("name", "Goal")
+                priority = g.get("priority", "need")
+                
+                pv = float(g.get("present_value") or 0)
+                r_inf = float(g.get("inflation_rate") or 6)
+                t = max(0, start - base_year)
+                base_payout = calculate_future_value(pv, r_inf, t)
+                
+                if gtype == "recurring":
+                    step_up = float(g.get("step_up_pct") or 0.0) / 100.0
+                    i = year - start
+                    outflow = base_payout * ((1 + step_up) ** i)
+                else:
+                    outflow = base_payout
+                    
+                year_goals.append({
+                    "name": f"{name}{year_label} ({priority})",
+                    "outflow": round(outflow, 2)
+                })
+
         yearly_data.append({
             "year":                     year,
             "age":                      age,
@@ -439,6 +480,8 @@ def run_simulation(profile: dict, assets: list, goals: list,
             "annual_outflow":           round(total_out, 2),
             "cumulative_outflows":      round(cumulative_out, 2),
             "cumulative_loan_outflows": round(cumulative_loan_out, 2),
+            "cumulative_sip_inflows":   round(cumulative_sip_in, 2),
+            "goal_events":              year_goals,
             "is_solvent":              portfolio > 0,
             "is_retirement":           age >= retire_age,
         })
@@ -458,15 +501,17 @@ def run_simulation(profile: dict, assets: list, goals: list,
                     "annual_outflow":           round(fo, 2),
                     "cumulative_outflows":      round(cumulative_out, 2),
                     "cumulative_loan_outflows": round(cumulative_loan_out, 2),
+                    "cumulative_sip_inflows":   round(cumulative_sip_in, 2),
+                    "goal_event":               None,
                     "is_solvent":              False,
                     "is_retirement":           a2 >= retire_age,
                 })
             break
 
     # ── Derived KPIs ─────────────────────────────────────────────
-    annual_exp_today  = monthly_exp_r * 12
-    fi_corpus_needed  = annual_exp_today * 25          # 4% Safe Withdrawal Rate
-    fi_ratio          = round(port_at_retire / fi_corpus_needed, 3) if fi_corpus_needed > 0 else 0.0
+    annual_exp_at_retire = monthly_exp_r_start * 12
+    fi_corpus_needed     = annual_exp_at_retire * 25          # 4% Safe Withdrawal Rate on inflated retirement expense
+    fi_ratio             = round(port_at_retire / fi_corpus_needed, 3) if fi_corpus_needed > 0 else 0.0
     total_corpus_req  = sum(outflow_sched.values())
     surplus           = port_at_retire - fi_corpus_needed
 
@@ -587,13 +632,28 @@ def _build_goal_details(
         yrs  = max(0, target_year - base_year)
         pv   = float(goal.get("present_value") or 0)
         r    = float(goal.get("inflation_rate") or 6)
-        fv   = calculate_future_value(pv, r, yrs)
+        gtype = goal.get("goal_type", "lump_sum")
+        
+        base_fv = calculate_future_value(pv, r, yrs)
+        if gtype == "recurring":
+            duration = max(1, int(goal.get("duration_years") or 1))
+            step_up = float(goal.get("step_up_pct") or 0.0) / 100.0
+            fv = 0.0
+            discounted_cost = 0.0
+            for i in range(duration):
+                cash_flow = base_fv * ((1 + step_up) ** i)
+                fv += cash_flow
+                discounted_cost += cash_flow / ((1 + blended_r) ** i)
+        else:
+            fv = base_fv
+            discounted_cost = base_fv
+            
         port = port_map.get(target_year, 0.0)
 
-        # Status: funded if portfolio ≥ 90% of FV at target year
-        if port >= fv * 0.9:
+        # Status: funded if portfolio ≥ discounted cost at target year
+        if port >= discounted_cost:
             status = "funded"
-        elif port >= fv * 0.5:
+        elif port >= discounted_cost * 0.5:
             status = "at_risk"
         else:
             status = "critical"
@@ -609,7 +669,7 @@ def _build_goal_details(
             "status":              status,
             "goal_type":           goal.get("goal_type", "lump_sum"),
             "portfolio_at_target": round(port, 2),
-            "gap":                 round(max(0.0, fv - port), 2),
+            "gap":                 round(max(0.0, discounted_cost - port), 2),
         })
 
     prio = {"critical": 0, "need": 1, "want": 2}
