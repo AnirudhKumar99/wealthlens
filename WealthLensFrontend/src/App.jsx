@@ -8,6 +8,7 @@ import SIPs from './pages/SIPs';
 import Insurance from './pages/Insurance';
 import Loans from './pages/Loans';
 import Login from './pages/Login';
+import ProfileSwitcher from './components/ProfileSwitcher';
 
 const TABS = [
   {id:'dashboard',label:'Dashboard',icon:'🏠'},
