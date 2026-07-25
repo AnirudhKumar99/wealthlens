@@ -1,5 +1,5 @@
 import uuid
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from models import ProfileModel, AssetItem, GoalItem, SipItem, InsurancePlanItem, LoanItem, UserRegisterModel, UserLoginModel
 from database import (
@@ -103,13 +103,29 @@ def api_set_active_profile(profile_id: str):
     return {"message": "Active profile updated", "active_profile_id": profile_id}
 
 @app.get("/api/profiles")
-def api_get_profiles():
+def api_get_profiles(authorization: Optional[str] = Header(None)):
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        payload = decode_access_token(token)
+        if payload:
+            uid = payload.get("sub")
+            return get_profiles_by_user_id(uid)
     return get_all_profiles()
 
 @app.post("/api/profiles")
-def api_create_profile(data: ProfileModel):
+def api_create_profile(data: ProfileModel, authorization: Optional[str] = Header(None)):
+    user_id = data.user_id
+    if not user_id and authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        payload = decode_access_token(token)
+        if payload:
+            user_id = payload.get("sub")
+            
     pid = str(uuid.uuid4())
-    create_profile(pid, data.model_dump(exclude={"id"}))
+    pdata = data.model_dump(exclude={"id"})
+    if user_id:
+        pdata["user_id"] = user_id
+    create_profile(pid, pdata)
     set_active_profile_id(pid)
     return {"message": "Profile created", "id": pid}
 

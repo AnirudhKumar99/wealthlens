@@ -54,7 +54,10 @@ export default function App() {
           setProfiles(userProfs);
           
           if (userProfs.length > 0) {
-            setActiveProfileId(userProfs[0].id);
+            setActiveProfileId(prev => {
+              if (prev && userProfs.some(p => p.id === prev)) return prev;
+              return userProfs[userProfs.length - 1].id;
+            });
           } else {
             setActiveProfileId(null);
           }
