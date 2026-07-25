@@ -24,8 +24,18 @@ def init_db():
         value TEXT
     )""")
     
+    c.execute("""CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        username TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        salt TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now'))
+    )""")
+
     c.execute("""CREATE TABLE IF NOT EXISTS profiles (
         id TEXT PRIMARY KEY,
+        user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
         family_name TEXT NOT NULL DEFAULT 'My Family',
         current_age INTEGER DEFAULT 35,
         retirement_age INTEGER DEFAULT 60,
@@ -39,6 +49,11 @@ def init_db():
         updated_at TEXT DEFAULT (datetime('now'))
     )""")
     
+    try:
+        c.execute("ALTER TABLE profiles ADD COLUMN user_id TEXT")
+    except Exception:
+        pass
+
     try:
         c.execute("ALTER TABLE profiles ADD COLUMN retirement_inflation_rate REAL DEFAULT 6.0")
     except Exception:
@@ -296,3 +311,30 @@ def delete_item(table: str, item_id: str, profile_id: str):
     conn.execute(f"DELETE FROM {table} WHERE id=? AND profile_id=?", (item_id, profile_id))
     conn.commit()
     conn.close()
+
+# --- User CRUD ---
+def create_user(user_id: str, username: str, email: str, password_hash: str, salt: str) -> dict:
+    conn = get_conn()
+    conn.execute("INSERT INTO users (id, username, email, password_hash, salt) VALUES (?, ?, ?, ?, ?)",
+                 (user_id, username, email, password_hash, salt))
+    conn.commit()
+    conn.close()
+    return {"id": user_id, "username": username, "email": email}
+
+def get_user_by_email(email: str) -> Optional[dict]:
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM users WHERE LOWER(email)=LOWER(?)", (email,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def get_user_by_id(user_id: str) -> Optional[dict]:
+    conn = get_conn()
+    row = conn.execute("SELECT id, username, email, created_at FROM users WHERE id=?", (user_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def get_profiles_by_user_id(user_id: str) -> list[dict]:
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM profiles WHERE user_id=? ORDER BY created_at DESC", (user_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]

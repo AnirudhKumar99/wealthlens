@@ -12,6 +12,11 @@ async function request(method, path, body) {
 }
 
 export const api = {
+  // --- Auth ---
+  register: (data) => request('POST', '/api/auth/register', data),
+  login: (data) => request('POST', '/api/auth/login', data),
+  getMe: (token) => request('GET', `/api/auth/me?token=${token}`),
+
   // --- Profile Management ---
   getCategories: () => request('GET', '/api/categories'),
   getActiveProfile: () => request('GET', '/api/profiles/active'),

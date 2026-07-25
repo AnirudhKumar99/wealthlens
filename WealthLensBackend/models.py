@@ -5,8 +5,20 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 
+class UserRegisterModel(BaseModel):
+    username: str = Field(min_length=2, max_length=50)
+    email: str = Field(min_length=5)
+    password: str = Field(min_length=4)
+
+
+class UserLoginModel(BaseModel):
+    email: str
+    password: str
+
+
 class ProfileModel(BaseModel):
     id: str = Field(default="")
+    user_id: Optional[str] = Field(default="")
     family_name: str = Field(default="My Family")
     current_age: int = Field(default=35, ge=1, le=80)
     retirement_age: int = Field(default=60, ge=18, le=85)

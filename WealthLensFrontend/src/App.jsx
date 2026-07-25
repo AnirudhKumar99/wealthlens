@@ -7,7 +7,7 @@ import Goals from './pages/Goals';
 import SIPs from './pages/SIPs';
 import Insurance from './pages/Insurance';
 import Loans from './pages/Loans';
-import ProfileSwitcher from './components/ProfileSwitcher';
+import Login from './pages/Login';
 
 const TABS = [
   {id:'dashboard',label:'Dashboard',icon:'🏠'},
@@ -22,9 +22,13 @@ const TABS = [
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [simulation, setSimulation] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
   
+  // Auth State
+  const [token, setToken] = useState(localStorage.getItem('wealthlens_token') || '');
+  const [user, setUser] = useState(null);
+
   // Profile State
   const [profiles, setProfiles] = useState([]);
   const [activeProfileId, setActiveProfileId] = useState(null);
@@ -39,30 +43,66 @@ export default function App() {
     try {
       const allCats = await api.getCategories();
       setCategories(allCats);
-      
-      const all = await api.getProfiles();
-      setProfiles(all);
-      
-      const activeRes = await api.getActiveProfile();
-      let pid = activeRes.active_profile_id;
-      
-      if (!pid && all.length > 0) {
-        pid = all[0].id;
-        await api.setActiveProfile(pid);
+
+      if (token) {
+        try {
+          const authMe = await api.getMe(token);
+          setUser(authMe.user);
+          const userProfs = authMe.profiles || [];
+          setProfiles(userProfs);
+          
+          if (userProfs.length > 0) {
+            setActiveProfileId(userProfs[0].id);
+          } else {
+            const activeRes = await api.getActiveProfile();
+            setActiveProfileId(activeRes.active_profile_id);
+          }
+        } catch {
+          // Token expired or invalid
+          localStorage.removeItem('wealthlens_token');
+          setToken('');
+          setUser(null);
+        }
+      } else {
+        const all = await api.getProfiles();
+        setProfiles(all);
+        const activeRes = await api.getActiveProfile();
+        let pid = activeRes.active_profile_id;
+        if (!pid && all.length > 0) {
+          pid = all[0].id;
+          await api.setActiveProfile(pid);
+        }
+        setActiveProfileId(pid);
       }
-      
-      setActiveProfileId(pid);
     } catch (err) {
       console.error(err);
-      showToast('❌ Failed to load profiles');
+      showToast('❌ Failed to load data');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     loadProfiles();
   }, [loadProfiles]);
+
+  const handleAuthSuccess = (authRes) => {
+    localStorage.setItem('wealthlens_token', authRes.access_token);
+    setToken(authRes.access_token);
+    setUser(authRes.user);
+    if (authRes.active_profile_id) {
+      setActiveProfileId(authRes.active_profile_id);
+    }
+    loadProfiles();
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('wealthlens_token');
+    setToken('');
+    setUser(null);
+    setSimulation(null);
+    showToast('👋 Logged out successfully');
+  };
 
   const handleProfileChange = (newId) => {
     setActiveProfileId(newId);
@@ -88,27 +128,38 @@ export default function App() {
   const renderContent = () => {
     if (!activeProfileId) {
       return (
-        <div className="clay-card card-lavender empty-state">
+        <div className="clay-card card-lavender empty-state animate-fade-in-up">
           <div className="empty-icon">👤</div>
           <p>Please create or select a profile to continue.</p>
         </div>
       );
     }
     
+    let component = null;
     switch (activeTab) {
-      case 'dashboard': return <Dashboard simulation={simulation} />;
-      case 'profile': return <Profile profileId={activeProfileId} showToast={showToast} onProfileDeleted={loadProfiles} />;
-      case 'assets': return <Assets profileId={activeProfileId} showToast={showToast} categories={categories} />;
-      case 'goals': return <Goals profileId={activeProfileId} showToast={showToast} categories={categories} />;
-      case 'sips': return <SIPs profileId={activeProfileId} showToast={showToast} categories={categories} />;
-      case 'insurance': return <Insurance profileId={activeProfileId} showToast={showToast} categories={categories} />;
-      case 'loans': return <Loans profileId={activeProfileId} showToast={showToast} categories={categories} />;
-      default: return null;
+      case 'dashboard': component = <Dashboard simulation={simulation} />; break;
+      case 'profile': component = <Profile profileId={activeProfileId} showToast={showToast} onProfileDeleted={loadProfiles} />; break;
+      case 'assets': component = <Assets profileId={activeProfileId} showToast={showToast} categories={categories} />; break;
+      case 'goals': component = <Goals profileId={activeProfileId} showToast={showToast} categories={categories} />; break;
+      case 'sips': component = <SIPs profileId={activeProfileId} showToast={showToast} categories={categories} />; break;
+      case 'insurance': component = <Insurance profileId={activeProfileId} showToast={showToast} categories={categories} />; break;
+      case 'loans': component = <Loans profileId={activeProfileId} showToast={showToast} categories={categories} />; break;
+      default: component = null;
     }
+
+    return (
+      <div key={`${activeTab}-${activeProfileId}`} className="animate-slide-in-right">
+        {component}
+      </div>
+    );
   };
 
   if (loading && !profiles.length) {
     return <div style={{padding: 40, textAlign: 'center'}}>Loading...</div>;
+  }
+
+  if (!token && !user) {
+    return <Login onAuthSuccess={handleAuthSuccess} showToast={showToast} />;
   }
 
   return (
@@ -119,7 +170,7 @@ export default function App() {
             <span className="logo-icon">💰</span>
             <div>
               <div className="logo-text">WealthLens</div>
-              <div className="logo-subtitle">Family Wealth Planner</div>
+              <div className="logo-subtitle">{user ? `Welcome, ${user.username}` : 'Family Wealth Planner'}</div>
             </div>
             {simulation && simulation.summary && (
               <span
@@ -144,6 +195,13 @@ export default function App() {
             />
             <button className="btn-simulate" onClick={runSimulation} disabled={loading || !activeProfileId}>
               {loading ? 'Wait...' : 'Run Simulation 🚀'}
+            </button>
+            <button 
+              className="btn-secondary" 
+              onClick={handleLogout}
+              style={{ borderRadius: '50px', padding: '8px 16px', fontSize: '13px', border: '1.5px solid #E0D7FF' }}
+            >
+              Logout 🔒
             </button>
           </div>
         </div>
