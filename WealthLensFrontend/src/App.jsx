@@ -215,7 +215,7 @@ export default function App() {
       <header className="app-header">
         <div className="header-inner">
           <div className="logo">
-            <span className="logo-icon">💰</span>
+            <span className="logo-icon">🔮</span>
             <div>
               <div className="logo-text">WealthLens</div>
               <div className="logo-subtitle">{user ? `Welcome, ${user.username}` : 'Family Wealth Planner'}</div>
