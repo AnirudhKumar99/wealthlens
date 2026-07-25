@@ -43,40 +43,40 @@ export default function Login({ onAuthSuccess, showToast }) {
             <span style={{ fontSize: '38px' }}>🔮</span>
             <div>
               <h1 style={{ fontSize: '32px', fontWeight: 900, color: '#A78BFA', letterSpacing: '-0.5px' }}>WealthLens 2.0</h1>
-              <p style={{ color: '#DDD6FE', fontSize: '14px', fontWeight: 600 }}>Master Financial Simulation Engine</p>
+              <p style={{ color: '#DDD6FE', fontSize: '14px', fontWeight: 600 }}>Next-Gen Family Wealth Intelligence Platform</p>
             </div>
           </div>
 
           <h2 style={{ fontSize: '28px', fontWeight: 800, marginBottom: '20px', lineHeight: 1.3 }}>
-            Visualize your financial future with <span style={{ color: '#F472B6' }}>precision</span> & <span style={{ color: '#34D399' }}>confidence</span>.
+            Visualize your financial freedom with <span style={{ color: '#F472B6' }}>precision</span> & <span style={{ color: '#34D399' }}>clarity</span>.
           </h2>
 
           <p style={{ color: '#C4B5FD', fontSize: '15px', lineHeight: 1.6, marginBottom: '32px' }}>
-            WealthLens projects your portfolio across a 50-year horizon, factoring in inflation, recurring goal outflows, multi-asset returns, and debt servicing.
+            WealthLens projects your lifetime portfolio trajectory across a 50-year horizon, accounting for inflation, milestone life goals, passive income, and wealth preservation.
           </p>
 
           {/* Feature Showcase Pills */}
           <div className="feature-pill animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
             <span style={{ fontSize: '24px' }}>📈</span>
             <div>
-              <div style={{ fontWeight: 800, fontSize: '15px', color: '#F3E8FF' }}>Dynamic Cashflow Forecasting</div>
-              <div style={{ fontSize: '12px', color: '#C4B5FD' }}>Simulate real compounding returns vs discrete goal withdrawals over time.</div>
+              <div style={{ fontWeight: 800, fontSize: '15px', color: '#F3E8FF' }}>Real-Time Wealth Forecasting</div>
+              <div style={{ fontSize: '12px', color: '#C4B5FD' }}>Instant portfolio growth trajectory & inflation-adjusted retirement projections.</div>
             </div>
           </div>
 
           <div className="feature-pill animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-            <span style={{ fontSize: '24px' }}>🎓</span>
+            <span style={{ fontSize: '24px' }}>🎯</span>
             <div>
-              <div style={{ fontWeight: 800, fontSize: '15px', color: '#F3E8FF' }}>Recurring SWP & Step-Up Goals</div>
-              <div style={{ fontSize: '12px', color: '#C4B5FD' }}>Model multi-year education fees & expenses with annual step-ups.</div>
+              <div style={{ fontWeight: 800, fontSize: '15px', color: '#F3E8FF' }}>Smart Goal & Milestone Planner</div>
+              <div style={{ fontSize: '12px', color: '#C4B5FD' }}>Model home purchases, higher education, and step-up SIP investments effortlessly.</div>
             </div>
           </div>
 
           <div className="feature-pill animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
-            <span style={{ fontSize: '24px' }}>🔐</span>
+            <span style={{ fontSize: '24px' }}>🛡️</span>
             <div>
-              <div style={{ fontWeight: 800, fontSize: '15px', color: '#F3E8FF' }}>Salt & SHA-256 Security</div>
-              <div style={{ fontSize: '12px', color: '#C4B5FD' }}>Your account is secured with cryptographic salting and hashing.</div>
+              <div style={{ fontWeight: 800, fontSize: '15px', color: '#F3E8FF' }}>Bank-Grade Data Privacy</div>
+              <div style={{ fontSize: '12px', color: '#C4B5FD' }}>Your account data is encrypted, confidential, and strictly private to you.</div>
             </div>
           </div>
         </div>
@@ -172,7 +172,7 @@ export default function Login({ onAuthSuccess, showToast }) {
               style={{ width: '100%', padding: '14px', fontSize: '16px', borderRadius: '50px' }}
               disabled={loading}
             >
-              {loading ? 'Processing...' : isRegister ? 'Create Free Account 🚀' : 'Sign In To WealthLens 🔓'}
+              {loading ? 'Processing...' : isRegister ? 'Unlock Your Wealth Plan 🚀' : 'Access Your Dashboard 🚀'}
             </button>
           </form>
         </div>
