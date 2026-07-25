@@ -116,21 +116,25 @@ def _health_score(fi_ratio: float, savings_rate_pct: float, blended_r: float,
                   debt_to_asset_ratio: float = 0.0) -> int:
     score = 0
 
-    # FI ratio  (0-25)
+    # FI ratio (0-25)
     if fi_ratio >= 1.5:
         score += 25
     elif fi_ratio >= 1.0:
-        score += 17
-    elif fi_ratio >= 0.7:
-        score += 8
+        score += 18 + int((fi_ratio - 1.0) * 14)
+    elif fi_ratio >= 0.5:
+        score += 8 + int((fi_ratio - 0.5) * 20)
+    else:
+        score += int(fi_ratio * 16)
 
     # Savings rate (0-20)
     if savings_rate_pct >= 30:
         score += 20
     elif savings_rate_pct >= 20:
-        score += 12
+        score += 14
     elif savings_rate_pct >= 10:
-        score += 4
+        score += 8
+    else:
+        score += int(savings_rate_pct * 0.8)
 
     # Blended return (0-15)
     if blended_r >= 0.12:
