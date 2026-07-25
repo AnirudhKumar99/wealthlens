@@ -239,6 +239,45 @@ def get_profile(profile_id: str) -> Optional[dict]:
     conn.close()
     return dict(row) if row else None
 
+def seed_profile_defaults(conn, profile_id: str):
+    import uuid, datetime
+    curr_year = datetime.datetime.now().year
+
+    # Assets
+    assets = [
+        (str(uuid.uuid4()), profile_id, 'EPF Balance', 'debt', 1500000, 8.1),
+        (str(uuid.uuid4()), profile_id, 'Equity Mutual Funds', 'equity', 2000000, 12.0),
+        (str(uuid.uuid4()), profile_id, 'Emergency FD', 'debt', 300000, 6.5)
+    ]
+    conn.executemany("INSERT INTO assets (id, profile_id, name, asset_class, value, return_rate) VALUES (?, ?, ?, ?, ?, ?)", assets)
+
+    # Goals
+    goals = [
+        (str(uuid.uuid4()), profile_id, 'Dream Home Downpayment', 'need', 2500000, curr_year + 5, 6.0, 'lump_sum', 1, 0),
+        (str(uuid.uuid4()), profile_id, 'Child College Education', 'critical', 1500000, curr_year + 12, 7.0, 'recurring', 4, 8.0)
+    ]
+    conn.executemany("INSERT INTO goals (id, profile_id, name, priority, present_value, target_year, inflation_rate, goal_type, duration_years, step_up_pct) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", goals)
+
+    # SIPs
+    sips = [
+        (str(uuid.uuid4()), profile_id, 'Index Fund SIP', 'equity', 15000, 8.0, 12.0, curr_year, curr_year + 20),
+        (str(uuid.uuid4()), profile_id, 'PPF Monthly', 'debt', 10000, 5.0, 7.1, curr_year, curr_year + 15)
+    ]
+    conn.executemany("INSERT INTO sips (id, profile_id, name, asset_class, monthly_amount, step_up_pct, return_rate, start_year, end_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", sips)
+
+    # Loans
+    loans = [
+        (str(uuid.uuid4()), profile_id, 'Home Loan', 'home', 2500000, 240, 8.5, 60)
+    ]
+    conn.executemany("INSERT INTO loans (id, profile_id, name, loan_type, principal, total_months, roi_pct, emis_paid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", loans)
+
+    # Insurance
+    insurance = [
+        (str(uuid.uuid4()), profile_id, 'Guaranteed Income Plan', 30000, curr_year + 7, curr_year + 10, 75000, curr_year + 25, 100000, 500000, 200000)
+    ]
+    conn.executemany("INSERT INTO insurance_plans (id, profile_id, name, annual_premium, premium_end_year, income_start_year, annual_income, income_end_year, terminal_bonus, death_benefit, accidental_rider) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", insurance)
+
+
 def create_profile(profile_id: str, data: dict):
     conn = get_conn()
     conn.execute("""INSERT INTO profiles 
@@ -250,6 +289,7 @@ def create_profile(profile_id: str, data: dict):
          data.get('monthly_expenses_retirement', 60000), data.get('retirement_inflation_rate', 6.0),
          data.get('currency', 'INR'))
     )
+    seed_profile_defaults(conn, profile_id)
     conn.commit()
     conn.close()
 

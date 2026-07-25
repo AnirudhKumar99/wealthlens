@@ -105,25 +105,38 @@ export default function App() {
     showToast('👋 Logged out successfully');
   };
 
-  const handleProfileChange = (newId) => {
-    setActiveProfileId(newId);
-    setSimulation(null); // Clear simulation for previous profile
-    setActiveTab('dashboard');
-  };
-
-  const runSimulation = async () => {
+  const runSimulation = useCallback(async (quiet = false, customToastMsg = '') => {
     if (!activeProfileId) return;
-    setLoading(true);
+    if (!quiet) setLoading(true);
     try {
       const res = await api.simulate(activeProfileId);
       setSimulation(res);
-      setActiveTab('dashboard');
-      showToast('⚡ Simulation complete!');
+      if (customToastMsg) {
+        showToast(`${customToastMsg} & Dashboard updated! 📊`);
+      } else if (!quiet) {
+        showToast('⚡ Simulation complete!');
+      }
     } catch (err) {
-      showToast('❌ Simulation failed');
+      if (!quiet) showToast('❌ Simulation failed');
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
+  }, [activeProfileId]);
+
+  // Auto-run simulation whenever active profile changes or loads
+  useEffect(() => {
+    if (activeProfileId) {
+      runSimulation(true);
+    }
+  }, [activeProfileId, runSimulation]);
+
+  const handleProfileChange = (newId) => {
+    setActiveProfileId(newId);
+    setActiveTab('dashboard');
+  };
+
+  const triggerSimulationUpdate = (msg) => {
+    runSimulation(true, msg);
   };
 
   const renderContent = () => {
@@ -139,12 +152,12 @@ export default function App() {
     let component = null;
     switch (activeTab) {
       case 'dashboard': component = <Dashboard simulation={simulation} />; break;
-      case 'profile': component = <Profile profileId={activeProfileId} showToast={showToast} onProfileDeleted={loadProfiles} />; break;
-      case 'assets': component = <Assets profileId={activeProfileId} showToast={showToast} categories={categories} />; break;
-      case 'goals': component = <Goals profileId={activeProfileId} showToast={showToast} categories={categories} />; break;
-      case 'sips': component = <SIPs profileId={activeProfileId} showToast={showToast} categories={categories} />; break;
-      case 'insurance': component = <Insurance profileId={activeProfileId} showToast={showToast} categories={categories} />; break;
-      case 'loans': component = <Loans profileId={activeProfileId} showToast={showToast} categories={categories} />; break;
+      case 'profile': component = <Profile profileId={activeProfileId} showToast={(msg) => triggerSimulationUpdate(msg)} onProfileDeleted={loadProfiles} />; break;
+      case 'assets': component = <Assets profileId={activeProfileId} showToast={(msg) => triggerSimulationUpdate(msg)} categories={categories} />; break;
+      case 'goals': component = <Goals profileId={activeProfileId} showToast={(msg) => triggerSimulationUpdate(msg)} categories={categories} />; break;
+      case 'sips': component = <SIPs profileId={activeProfileId} showToast={(msg) => triggerSimulationUpdate(msg)} categories={categories} />; break;
+      case 'insurance': component = <Insurance profileId={activeProfileId} showToast={(msg) => triggerSimulationUpdate(msg)} categories={categories} />; break;
+      case 'loans': component = <Loans profileId={activeProfileId} showToast={(msg) => triggerSimulationUpdate(msg)} categories={categories} />; break;
       default: component = null;
     }
 
@@ -194,7 +207,7 @@ export default function App() {
               onChange={handleProfileChange}
               onRefresh={loadProfiles}
             />
-            <button className="btn-simulate" onClick={runSimulation} disabled={loading || !activeProfileId}>
+            <button className="btn-simulate" onClick={() => runSimulation(false)} disabled={loading || !activeProfileId}>
               {loading ? 'Wait...' : 'Run Simulation 🚀'}
             </button>
             <button 
