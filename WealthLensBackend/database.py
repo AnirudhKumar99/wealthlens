@@ -3,10 +3,13 @@ database.py — SQLite persistence layer for WealthLens 2.0 (Multi-profile)
 """
 import sqlite3
 import json
+import os
 from pathlib import Path
 from typing import Any, Optional
 
-DB_PATH = Path(__file__).parent / "wealth.db"
+# Use persistent /data volume directory on Railway if available, else local directory
+DATA_DIR = Path("/data") if Path("/data").exists() else Path(__file__).parent
+DB_PATH = DATA_DIR / "wealth.db"
 
 def get_conn():
     conn = sqlite3.connect(DB_PATH)
