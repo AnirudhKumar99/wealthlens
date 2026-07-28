@@ -111,8 +111,8 @@ export default function Goals({ profileId, showToast, categories = [] }) {
                   {categories.find(c => c.category_type === 'goal_priority' && c.code === goal.priority)?.display_name || goal.priority}
                 </span>
               </div>
-              <div style={{ minWidth: '130px', textAlign: 'right' }}>
-                <div style={{ fontSize: '20px', fontWeight: 900, color: '#2D1B69' }}>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '18px', fontWeight: 900, color: '#2D1B69' }}>
                   {fmt(goal.present_value)}
                 </div>
                 <div className="item-sub" style={{textTransform: 'uppercase', letterSpacing: '0.5px'}}>Present Value</div>

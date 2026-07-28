@@ -127,8 +127,8 @@ export default function Loans({ profileId, showToast, categories = [] }) {
                       {categories.find(c => c.category_type === 'loan_type' && c.code === loan.loan_type)?.display_name || loan.loan_type}
                     </span>
                   </div>
-                  <div style={{ minWidth: '130px', textAlign: 'right' }}>
-                    <div style={{ fontSize: '20px', fontWeight: 900, color: '#2D1B69' }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '18px', fontWeight: 900, color: '#DC2626' }}>
                       {fmt(loan.principal)}
                     </div>
                     <div className="item-sub" style={{textTransform: 'uppercase', letterSpacing: '0.5px'}}>Principal</div>

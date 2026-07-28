@@ -95,7 +95,7 @@ export default function Assets({ profileId, showToast, categories = [] }) {
                   {categories.find(c => c.category_type === 'asset_class' && c.code === asset.asset_class)?.display_name || asset.asset_class}
                 </span>
               </div>
-              <div style={{ minWidth: '130px', textAlign: 'right' }}>
+              <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: '20px', fontWeight: 900, color: '#2D1B69' }}>
                   {fmt(asset.value)}
                 </div>
