@@ -100,6 +100,7 @@ def init_db():
         id TEXT PRIMARY KEY,
         profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
         name TEXT DEFAULT 'Insurance Plan',
+        policy_type TEXT DEFAULT 'endowment',
         annual_premium REAL DEFAULT 0,
         premium_end_year INTEGER DEFAULT 2033,
         income_start_year INTEGER DEFAULT 2037,
@@ -107,8 +108,25 @@ def init_db():
         income_end_year INTEGER DEFAULT 2056,
         terminal_bonus REAL DEFAULT 0,
         death_benefit REAL DEFAULT 0,
-        accidental_rider REAL DEFAULT 0
+        accidental_rider REAL DEFAULT 0,
+        annual_bonus_rate REAL DEFAULT 0.0,
+        is_compounded_bonus INTEGER DEFAULT 0
     )""")
+    
+    try:
+        c.execute("ALTER TABLE insurance_plans ADD COLUMN policy_type TEXT DEFAULT 'endowment'")
+    except Exception:
+        pass
+
+    try:
+        c.execute("ALTER TABLE insurance_plans ADD COLUMN annual_bonus_rate REAL DEFAULT 0.0")
+    except Exception:
+        pass
+
+    try:
+        c.execute("ALTER TABLE insurance_plans ADD COLUMN is_compounded_bonus INTEGER DEFAULT 0")
+    except Exception:
+        pass
     
     c.execute("""CREATE TABLE IF NOT EXISTS loans (
         id TEXT PRIMARY KEY,
@@ -149,6 +167,15 @@ def init_db():
             ('loan_type', 'personal', 'Personal Loan'),
         ]
         c.executemany("INSERT INTO categories (category_type, code, display_name) VALUES (?, ?, ?)", default_categories)
+
+    policy_categories = [
+        ('policy_type', 'term_life', 'Term Life Insurance'),
+        ('policy_type', 'endowment', 'Endowment / Participating Plan'),
+        ('policy_type', 'guaranteed_income', 'Guaranteed Income Plan'),
+        ('policy_type', 'ulip', 'ULIP Plan'),
+        ('policy_type', 'health_other', 'Health / Other Insurance'),
+    ]
+    c.executemany("INSERT OR IGNORE INTO categories (category_type, code, display_name) VALUES (?, ?, ?)", policy_categories)
         
     # Seed robust middle-class profile if no profiles exist
     if c.execute("SELECT COUNT(*) FROM profiles").fetchone()[0] == 0:

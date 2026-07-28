@@ -68,6 +68,7 @@ class InsurancePlanItem(BaseModel):
     id: str = Field(default="")
     profile_id: str = Field(default="")
     name: str = Field(default="Insurance Plan")
+    policy_type: str = Field(default="endowment")
     annual_premium: float = Field(default=0.0, ge=0)
     premium_end_year: int = Field(default=2033)
     income_start_year: int = Field(default=2037)
@@ -76,6 +77,8 @@ class InsurancePlanItem(BaseModel):
     terminal_bonus: float = Field(default=0.0, ge=0)
     death_benefit: float = Field(default=0.0, ge=0)
     accidental_rider: float = Field(default=0.0, ge=0)
+    annual_bonus_rate: float = Field(default=0.0, ge=0, le=100)
+    is_compounded_bonus: bool = Field(default=False)
 
 
 class LoanItem(BaseModel):

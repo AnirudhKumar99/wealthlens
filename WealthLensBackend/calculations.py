@@ -176,19 +176,43 @@ def _health_score(fi_ratio: float, savings_rate_pct: float, blended_r: float,
 # Insurance Plan Guaranteed Income Helper
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _compute_insurance_income(insurance_plans: list, year: int) -> float:
+def _compute_insurance_income(insurance_plans: list, year: int, base_year: int = 2026) -> float:
     """
     Guaranteed annual income from all active insurance plan income periods.
-    Also adds terminal/maturity bonus in the final income year.
+    Also computes compounding annual bonus and terminal/maturity bonus in final income year.
     """
     total = 0.0
     for plan in insurance_plans:
         start = int(plan.get("income_start_year") or 9999)
         end   = int(plan.get("income_end_year") or 0)
+        
+        # Regular annual payout
         if start <= year <= end:
             total += float(plan.get("annual_income") or 0)
+
+        # Terminal / Maturity year payout
         if year == end:
             total += float(plan.get("terminal_bonus") or 0)
+            
+            # Compounded / Simple annual bonus calculation
+            bonus_rate = float(plan.get("annual_bonus_rate") or 0.0) / 100.0
+            is_compounding = bool(plan.get("is_compounded_bonus") or False)
+            
+            if bonus_rate > 0:
+                policy_years = max(1, end - base_year)
+                base_sum = float(plan.get("death_benefit") or 0)
+                if base_sum <= 0:
+                    base_sum = float(plan.get("annual_premium") or 0) * 10
+                
+                if is_compounding:
+                    # Compounded reversionary bonus: SumAssured * ((1 + r)^n - 1)
+                    compounded_bonus = base_sum * (((1.0 + bonus_rate) ** policy_years) - 1.0)
+                    total += max(0.0, compounded_bonus)
+                else:
+                    # Simple reversionary bonus: SumAssured * r * n
+                    simple_bonus = base_sum * bonus_rate * policy_years
+                    total += max(0.0, simple_bonus)
+                    
     return total
 
 
@@ -415,7 +439,7 @@ def run_simulation(profile: dict, assets: list, goals: list,
             cumulative_sip_in += annual_sip
 
         # 3. Guaranteed insurance plan income (active for any year in income window)
-        ins_income = _compute_insurance_income(insurance_plans or [], year)
+        ins_income = _compute_insurance_income(insurance_plans or [], year, base_year)
         portfolio += ins_income
 
         # 4. Loan EMI outflows
