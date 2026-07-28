@@ -1,6 +1,7 @@
 import uuid
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Header
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from models import ProfileModel, AssetItem, GoalItem, SipItem, InsurancePlanItem, LoanItem, UserRegisterModel, UserLoginModel
 from database import (
@@ -11,6 +12,7 @@ from database import (
 )
 from auth import hash_password, verify_password, create_access_token, decode_access_token
 from calculations import run_simulation
+from excel_exporter import generate_financial_excel_report
 
 app = FastAPI(title="WealthLens API 2.0 (Multi-Profile)")
 
@@ -206,3 +208,46 @@ def api_simulate(profile_id: str):
         insurance_plans=insurance,
         loans=loans
     )
+
+
+# --- Excel Export ---
+@app.get("/api/profiles/{profile_id}/export-excel")
+def api_export_excel(profile_id: str):
+    profile = get_profile(profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+        
+    assets = get_items("assets", profile_id)
+    goals = get_items("goals", profile_id)
+    sips = get_items("sips", profile_id)
+    insurance = get_items("insurance_plans", profile_id)
+    loans = get_items("loans", profile_id)
+    
+    sim_result = run_simulation(
+        profile=profile,
+        assets=assets,
+        goals=goals,
+        sips=sips,
+        insurance_plans=insurance,
+        loans=loans
+    )
+
+    excel_stream = generate_financial_excel_report(
+        profile=profile,
+        assets=assets,
+        goals=goals,
+        sips=sips,
+        insurance_plans=insurance,
+        loans=loans,
+        sim_result=sim_result
+    )
+
+    family_slug = (profile.get("family_name") or "Family").replace(" ", "_")
+    filename = f"WealthLens_Report_{family_slug}.xlsx"
+
+    return Response(
+        content=excel_stream.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+

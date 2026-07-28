@@ -59,8 +59,26 @@ export const api = {
   updateLoan: (profileId, id, data) => request('PUT', `/api/profiles/${profileId}/loans/${id}`, data),
   deleteLoan: (profileId, id) => request('DELETE', `/api/profiles/${profileId}/loans/${id}`),
 
-  // Simulation
+  // Simulation & Export
   simulate: (profileId) => request('POST', `/api/profiles/${profileId}/simulate`),
+  exportExcel: async (profileId) => {
+    const token = localStorage.getItem('wealthlens_token');
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(`${BASE}/api/profiles/${profileId}/export-excel`, { method: 'GET', headers });
+    if (!res.ok) throw new Error(await res.text());
+    
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `WealthLens_Financial_Report.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  },
 };
 
 export function fmt(value, currency = 'INR') {

@@ -144,6 +144,21 @@ export default function App() {
     setActiveTab('dashboard');
   };
 
+  const handleExportExcel = async () => {
+    if (!activeProfileId) {
+      showToast('❌ Please select or create a profile first');
+      return;
+    }
+    try {
+      showToast('📥 Generating Excel report...');
+      await api.exportExcel(activeProfileId);
+      showToast('✅ Report downloaded successfully!');
+    } catch (err) {
+      console.error(err);
+      showToast('❌ Failed to export Excel report');
+    }
+  };
+
   const triggerSimulationUpdate = (msg) => {
     runSimulation(true, msg);
   };
@@ -254,6 +269,16 @@ export default function App() {
               triggerCreate={triggerCreateProfile}
               onResetTrigger={() => setTriggerCreateProfile(false)}
             />
+            {activeProfileId && (
+              <button 
+                className="btn-secondary" 
+                onClick={handleExportExcel}
+                title="Download 6-sheet Excel Financial Report"
+                style={{ borderRadius: '50px', padding: '7px 14px', fontSize: '12px', border: '1.5px solid #A7F3D0', flexShrink: 0, color: '#059669', background: '#ECFDF5' }}
+              >
+                📥 Export (.xlsx)
+              </button>
+            )}
             <button 
               className="btn-secondary" 
               onClick={handleLogout}
