@@ -79,24 +79,18 @@ export default function Profile({ profileId, showToast, onProfileDeleted }) {
             </div>
           </div>
 
-          <div className="grid-2">
-            <div className="form-group">
-              <label className="form-label">Annual Income</label>
-              <NumberInput name="annual_income" value={form.annual_income} onChange={handleChange} required currency={form.currency} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Savings Rate (%)</label>
-              <input type="number" step="0.01" name="savings_rate" value={form.savings_rate} onChange={handleChange} className="form-input" required />
-            </div>
+          <div className="form-group">
+            <label className="form-label">Annual Income</label>
+            <NumberInput name="annual_income" value={form.annual_income} onChange={handleChange} required currency={form.currency} />
           </div>
 
           <div className="grid-2">
             <div className="form-group">
-              <label className="form-label">Retirement Monthly Expenses (Today's Value)</label>
+              <label className="form-label">Monthly Expenses in Retirement (PV)</label>
               <NumberInput name="monthly_expenses_retirement" value={form.monthly_expenses_retirement} onChange={handleChange} required currency={form.currency} />
             </div>
             <div className="form-group">
-              <label className="form-label">Retirement Inflation Rate (%)</label>
+              <label className="form-label">Post-Retirement Inflation (%)</label>
               <input type="number" step="0.01" name="retirement_inflation_rate" value={form.retirement_inflation_rate ?? 6.0} onChange={handleChange} className="form-input" required />
             </div>
           </div>
