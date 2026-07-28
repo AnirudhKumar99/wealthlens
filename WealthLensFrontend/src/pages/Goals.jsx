@@ -98,19 +98,19 @@ export default function Goals({ profileId, showToast, categories = [] }) {
       <div>
         {(filter === 'all' ? goals : goals.filter(g => g.priority === filter)).map(goal => (
           <div key={goal.id} className="item-row">
-            <div style={{flex: 1}}>
-              <div className="item-name">{goal.name}</div>
+            <div className="item-main">
+              <div className="item-name-group">
+                <span className="item-name">{goal.name}</span>
+                <span className={`badge ${goal.priority==='critical'?'badge-critical':goal.priority==='need'?'badge-at-risk':'badge-funded'}`}>
+                  {categories.find(c => c.category_type === 'goal_priority' && c.code === goal.priority)?.display_name || goal.priority}
+                </span>
+              </div>
               <div className="item-sub">
                 Target Year: {goal.target_year} ({goal.target_year - currentYear} yrs)
                 {goal.goal_type === 'recurring' && ` • Recurring for ${goal.duration_years || 1} yrs @ ${goal.step_up_pct || 0}% step-up`}
               </div>
             </div>
-            <div style={{ paddingRight: '24px', textAlign: 'right', display: 'flex', alignItems: 'center', gap: '20px' }}>
-              <div style={{ width: '130px', textAlign: 'right' }}>
-                <span className={`badge ${goal.priority==='critical'?'badge-critical':goal.priority==='need'?'badge-at-risk':'badge-funded'}`}>
-                  {categories.find(c => c.category_type === 'goal_priority' && c.code === goal.priority)?.display_name || goal.priority}
-                </span>
-              </div>
+            <div className="item-meta">
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: '18px', fontWeight: 900, color: '#2D1B69' }}>
                   {fmt(goal.present_value)}
@@ -120,10 +120,10 @@ export default function Goals({ profileId, showToast, categories = [] }) {
                   Est FV: {fmt(calculateEstimatedFV(goal))}
                 </div>
               </div>
-            </div>
-            <div className="item-actions">
-              <button className="btn-icon" onClick={() => { setGoalType(goal.goal_type); setModal({open: true, data: goal}); }}>✏️</button>
-              <button className="btn-icon" onClick={() => handleDelete(goal.id)}>🗑️</button>
+              <div className="item-actions">
+                <button className="btn-icon" onClick={() => { setGoalType(goal.goal_type); setModal({open: true, data: goal}); }}>✏️</button>
+                <button className="btn-icon" onClick={() => handleDelete(goal.id)}>🗑️</button>
+              </div>
             </div>
           </div>
         ))}

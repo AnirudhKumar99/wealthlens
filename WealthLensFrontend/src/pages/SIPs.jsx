@@ -89,28 +89,28 @@ export default function SIPs({ profileId, showToast, categories = [] }) {
       <div>
         {filteredSips.map(sip => (
           <div key={sip.id} className="item-row">
-            <div style={{flex: 1}}>
-              <div className="item-name">{sip.name}</div>
-              <div className="item-sub">
-                From {sip.start_year} to {sip.end_year || 'Forever'} • {sip.return_rate}% Return • {sip.step_up_pct}% Step-up
-              </div>
-            </div>
-            <div style={{ paddingRight: '24px', textAlign: 'right', display: 'flex', alignItems: 'center', gap: '20px' }}>
-              <div style={{ width: '130px', textAlign: 'right' }}>
+            <div className="item-main">
+              <div className="item-name-group">
+                <span className="item-name">{sip.name}</span>
                 <span className={`badge badge-${sip.asset_class.replace('_', '-')}`}>
                   {categories.find(c => c.category_type === 'asset_class' && c.code === sip.asset_class)?.display_name || sip.asset_class}
                 </span>
               </div>
+              <div className="item-sub">
+                From {sip.start_year} to {sip.end_year || 'Forever'} • {sip.return_rate}% Return • {sip.step_up_pct}% Step-up
+              </div>
+            </div>
+            <div className="item-meta">
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '20px', fontWeight: 900, color: '#2D1B69' }}>
-                  {fmt(sip.monthly_amount)}<span style={{fontSize: '14px', color: '#9B8EC4'}}>/mo</span>
+                <div style={{ fontSize: '18px', fontWeight: 900, color: '#2D1B69' }}>
+                  {fmt(sip.monthly_amount)}<span style={{fontSize: '13px', color: '#9B8EC4'}}>/mo</span>
                 </div>
                 <div className="item-sub" style={{textTransform: 'uppercase', letterSpacing: '0.5px'}}>SIP Amount</div>
               </div>
-            </div>
-            <div className="item-actions">
-              <button className="btn-icon" onClick={() => setModal({open: true, data: sip})}>✏️</button>
-              <button className="btn-icon" onClick={() => handleDelete(sip.id)}>🗑️</button>
+              <div className="item-actions">
+                <button className="btn-icon" onClick={() => setModal({open: true, data: sip})}>✏️</button>
+                <button className="btn-icon" onClick={() => handleDelete(sip.id)}>🗑️</button>
+              </div>
             </div>
           </div>
         ))}

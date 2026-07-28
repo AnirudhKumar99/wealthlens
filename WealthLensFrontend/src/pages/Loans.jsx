@@ -114,32 +114,32 @@ export default function Loans({ profileId, showToast, categories = [] }) {
           
           return (
             <div key={loan.id} className="item-row" style={{flexDirection: 'column', alignItems: 'stretch'}}>
-              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
-                <div style={{flex: 1}}>
-                  <div className="item-name">{loan.name}</div>
-                  <div className="item-sub">
-                    {loan.roi_pct}% ROI • {loan.emis_paid} / {loan.total_months} EMIs Paid • {fmt(emi)}/mo • Ends: {completionYear}
-                  </div>
-                </div>
-                <div style={{ paddingRight: '24px', textAlign: 'right', display: 'flex', alignItems: 'center', gap: '20px' }}>
-                  <div style={{ width: '130px', textAlign: 'right' }}>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap'}}>
+                <div className="item-main">
+                  <div className="item-name-group">
+                    <span className="item-name">{loan.name}</span>
                     <span className="badge badge-debt">
                       {categories.find(c => c.category_type === 'loan_type' && c.code === loan.loan_type)?.display_name || loan.loan_type}
                     </span>
                   </div>
+                  <div className="item-sub">
+                    {loan.roi_pct}% ROI • {loan.emis_paid} / {loan.total_months} EMIs Paid • {fmt(emi)}/mo • Ends: {completionYear}
+                  </div>
+                </div>
+                <div className="item-meta">
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '18px', fontWeight: 900, color: '#DC2626' }}>
                       {fmt(loan.principal)}
                     </div>
                     <div className="item-sub" style={{textTransform: 'uppercase', letterSpacing: '0.5px'}}>Principal</div>
                   </div>
-                </div>
-                <div className="item-actions">
-                  <button className="btn-icon" onClick={() => setModal({open: true, data: loan})}>✏️</button>
-                  <button className="btn-icon" onClick={() => handleDelete(loan.id)}>🗑️</button>
+                  <div className="item-actions">
+                    <button className="btn-icon" onClick={() => setModal({open: true, data: loan})}>✏️</button>
+                    <button className="btn-icon" onClick={() => handleDelete(loan.id)}>🗑️</button>
+                  </div>
                 </div>
               </div>
-              <div className="progress-bar-wrap">
+              <div className="progress-bar-wrap" style={{marginTop: '10px'}}>
                 <div className="progress-bar-fill" style={{width: `${progress}%`, background: '#10B981'}}></div>
               </div>
               <div style={{fontSize: '10px', textAlign: 'right', marginTop: '4px', color: '#6B5B95', fontWeight: 'bold'}}>{progress.toFixed(1)}% Paid</div>

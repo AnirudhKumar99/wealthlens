@@ -82,21 +82,26 @@ export default function Insurance({ profileId, showToast }) {
       <div>
         {plans.map(plan => (
           <div key={plan.id} className="item-row">
-            <div style={{flex: 1}}>
-              <div className="item-name">{plan.name}</div>
+            <div className="item-main">
+              <div className="item-name-group">
+                <span className="item-name">{plan.name}</span>
+                <span className="badge badge-gold">Insurance Plan</span>
+              </div>
               <div className="item-sub">
                 Pays {fmt(plan.annual_income)}/yr ({plan.income_start_year} - {plan.income_end_year}) • Death Benefit: {fmt(plan.death_benefit)}
               </div>
             </div>
-            <div style={{ paddingRight: '24px', textAlign: 'right' }}>
-              <div style={{ fontSize: '20px', fontWeight: 900, color: '#2D1B69' }}>
-                {fmt(plan.annual_premium)}<span style={{fontSize: '14px', color: '#9B8EC4'}}>/yr</span>
+            <div className="item-meta">
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '18px', fontWeight: 900, color: '#2D1B69' }}>
+                  {fmt(plan.annual_premium)}<span style={{fontSize: '13px', color: '#9B8EC4'}}>/yr</span>
+                </div>
+                <div className="item-sub" style={{textTransform: 'uppercase', letterSpacing: '0.5px'}}>Premium (Till {plan.premium_end_year})</div>
               </div>
-              <div className="item-sub" style={{textTransform: 'uppercase', letterSpacing: '0.5px'}}>Premium (Till {plan.premium_end_year})</div>
-            </div>
-            <div className="item-actions">
-              <button className="btn-icon" onClick={() => setModal({open: true, data: plan})}>✏️</button>
-              <button className="btn-icon" onClick={() => handleDelete(plan.id)}>🗑️</button>
+              <div className="item-actions">
+                <button className="btn-icon" onClick={() => setModal({open: true, data: plan})}>✏️</button>
+                <button className="btn-icon" onClick={() => handleDelete(plan.id)}>🗑️</button>
+              </div>
             </div>
           </div>
         ))}

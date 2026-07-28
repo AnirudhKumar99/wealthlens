@@ -223,11 +223,13 @@ export default function App() {
     <div className="app-shell">
       <header className="app-header">
         <div className="header-inner">
-          <div className="logo">
-            <span className="logo-icon">🔮</span>
-            <div>
-              <div className="logo-text">WealthLens</div>
-              <div className="logo-subtitle">{user ? `Welcome, ${user.username}` : 'Family Wealth Planner'}</div>
+          <div className="header-left">
+            <div className="logo">
+              <span className="logo-icon">🔮</span>
+              <div>
+                <div className="logo-text">WealthLens</div>
+                <div className="logo-subtitle">{user ? `Welcome, ${user.username}` : 'Family Wealth Planner'}</div>
+              </div>
             </div>
             {simulation && simulation.summary && (
               <span
@@ -236,14 +238,14 @@ export default function App() {
                   : simulation.summary.health_score >= 40 ? 'badge-at-risk'
                   : 'badge-critical'
                 }`}
-                style={{marginLeft: 10, fontSize: '12px', padding: '4px 12px'}}
+                style={{fontSize: '12px', padding: '4px 10px', flexShrink: 0}}
               >
                 ❤️ Score: {simulation.summary.health_score}/100
               </span>
             )}
           </div>
           
-          <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
+          <div className="header-right">
             <ProfileSwitcher 
               profiles={profiles} 
               activeProfileId={activeProfileId} 
@@ -255,7 +257,7 @@ export default function App() {
             <button 
               className="btn-secondary" 
               onClick={handleLogout}
-              style={{ borderRadius: '50px', padding: '8px 16px', fontSize: '13px', border: '1.5px solid #E0D7FF' }}
+              style={{ borderRadius: '50px', padding: '7px 14px', fontSize: '12px', border: '1.5px solid #E0D7FF', flexShrink: 0 }}
             >
               Logout 🔒
             </button>

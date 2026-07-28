@@ -85,26 +85,26 @@ export default function Assets({ profileId, showToast, categories = [] }) {
       <div>
         {filteredAssets.map(asset => (
           <div key={asset.id} className="item-row">
-            <div style={{flex: 1}}>
-              <div className="item-name">{asset.name}</div>
-              <div className="item-sub">Return Rate: {asset.return_rate}% / yr</div>
-            </div>
-            <div style={{ paddingRight: '24px', textAlign: 'right', display: 'flex', alignItems: 'center', gap: '20px' }}>
-              <div style={{ width: '130px', textAlign: 'right' }}>
+            <div className="item-main">
+              <div className="item-name-group">
+                <span className="item-name">{asset.name}</span>
                 <span className={`badge badge-${asset.asset_class.replace('_', '-')}`}>
                   {categories.find(c => c.category_type === 'asset_class' && c.code === asset.asset_class)?.display_name || asset.asset_class}
                 </span>
               </div>
+              <div className="item-sub">Return Rate: {asset.return_rate}% / yr</div>
+            </div>
+            <div className="item-meta">
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '20px', fontWeight: 900, color: '#2D1B69' }}>
+                <div style={{ fontSize: '18px', fontWeight: 900, color: '#2D1B69' }}>
                   {fmt(asset.value)}
                 </div>
                 <div className="item-sub" style={{textTransform: 'uppercase', letterSpacing: '0.5px'}}>Current Value</div>
               </div>
-            </div>
-            <div className="item-actions">
-              <button className="btn-icon" onClick={() => setModal({open: true, data: asset})}>✏️</button>
-              <button className="btn-icon" onClick={() => handleDelete(asset.id)}>🗑️</button>
+              <div className="item-actions">
+                <button className="btn-icon" onClick={() => setModal({open: true, data: asset})}>✏️</button>
+                <button className="btn-icon" onClick={() => handleDelete(asset.id)}>🗑️</button>
+              </div>
             </div>
           </div>
         ))}
