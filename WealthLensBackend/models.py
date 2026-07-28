@@ -48,8 +48,9 @@ class GoalItem(BaseModel):
     target_year: int = Field(default=2030)
     inflation_rate: float = Field(default=6.0, ge=0, le=50)
     goal_type: str = Field(default="lump_sum")
-    duration_years: int = Field(default=1, ge=1)
-    step_up_pct: float = Field(default=0.0, ge=0, le=50)
+    duration_years: Optional[int] = Field(default=1)
+    step_up_pct: Optional[float] = Field(default=0.0)
+    is_active: bool = Field(default=True)
 
 
 class SipItem(BaseModel):

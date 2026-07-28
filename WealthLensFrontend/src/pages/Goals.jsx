@@ -6,6 +6,7 @@ export default function Goals({ profileId, showToast, categories = [] }) {
   const [goals, setGoals] = useState([]);
   const [modal, setModal] = useState({ open: false, data: null });
   const [goalType, setGoalType] = useState('lump_sum');
+  const [isActive, setIsActive] = useState(true);
   const [filter, setFilter] = useState('all');
   const currentYear = new Date().getFullYear();
 
@@ -41,6 +42,30 @@ export default function Goals({ profileId, showToast, categories = [] }) {
     return baseFv;
   };
 
+  const handleToggleActive = async (goal) => {
+    const isCurrentlyActive = goal.is_active === true || goal.is_active === 1 || goal.is_active === '1' || goal.is_active === undefined || goal.is_active === null;
+    const newStatus = !isCurrentlyActive;
+    const data = {
+      name: goal.name,
+      priority: goal.priority || 'need',
+      present_value: Number(goal.present_value || 0),
+      target_year: Number(goal.target_year || currentYear + 5),
+      inflation_rate: Number(goal.inflation_rate || 6),
+      goal_type: goal.goal_type || 'lump_sum',
+      duration_years: Number(goal.duration_years || 1),
+      step_up_pct: Number(goal.step_up_pct || 0),
+      is_active: newStatus
+    };
+    try {
+      await api.updateGoal(profileId, goal.id, data);
+      showToast(newStatus ? '🟢 Goal activated' : '⏸️ Goal paused');
+      loadGoals();
+    } catch (err) {
+      console.error('Error toggling goal status:', err);
+      showToast('❌ Error toggling goal status');
+    }
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -52,7 +77,8 @@ export default function Goals({ profileId, showToast, categories = [] }) {
       inflation_rate: Number(fd.get('inflation_rate')),
       goal_type: fd.get('goal_type'),
       duration_years: fd.get('goal_type') === 'recurring' ? Number(fd.get('duration_years')) : 1,
-      step_up_pct: fd.get('goal_type') === 'recurring' ? Number(fd.get('step_up_pct')) : 0
+      step_up_pct: fd.get('goal_type') === 'recurring' ? Number(fd.get('step_up_pct')) : 0,
+      is_active: isActive
     };
     try {
       if (modal.data) await api.updateGoal(profileId, modal.data.id, data);
@@ -77,56 +103,85 @@ export default function Goals({ profileId, showToast, categories = [] }) {
     }
   };
 
+  const openModalForGoal = (goal = null) => {
+    setGoalType(goal ? goal.goal_type : 'lump_sum');
+    setIsActive(goal ? Boolean(goal.is_active ?? true) : true);
+    setModal({ open: true, data: goal });
+  };
+
   return (
     <div className="clay-card card-sky">
       <div style={{display:'flex', flexWrap: 'wrap', justifyContent:'space-between', alignItems:'center', gap: '10px', marginBottom: '18px'}}>
         <h2 className="section-title" style={{margin:0}}>
           <span className="title-icon">🎯</span> Goals
-          <span className="info-icon" data-tooltip="Map out your future expenses like buying a house, children's education, or vacations.">i</span>
+          <span className="info-icon" data-tooltip="Map out your future expenses. Toggle goals ON/OFF to run instant 'What-If' scenarios!">i</span>
         </h2>
         <div style={{display: 'flex', gap: '10px', flexWrap: 'nowrap', alignItems: 'center'}}>
           <select className="form-input" style={{padding: '0 16px', borderRadius: '50px', minWidth: '130px', height: '38px'}} value={filter} onChange={e => setFilter(e.target.value)}>
-            <option value="all">All Priorities</option>
+            <option value="all">All Priorities ({goals.length})</option>
             {categories.filter(c => c.category_type === 'goal_priority').map(c => (
               <option key={c.code} value={c.code}>{c.display_name}</option>
             ))}
           </select>
-          <button className="btn-primary" style={{height: '38px', display: 'flex', alignItems: 'center', whiteSpace: 'nowrap'}} onClick={() => { setGoalType('lump_sum'); setModal({open: true, data: null}); }}>➕ Add Goal</button>
+          <button className="btn-primary" style={{height: '38px', display: 'flex', alignItems: 'center', whiteSpace: 'nowrap'}} onClick={() => openModalForGoal(null)}>➕ Add Goal</button>
         </div>
       </div>
 
       <div>
-        {(filter === 'all' ? goals : goals.filter(g => g.priority === filter)).map(goal => (
-          <div key={goal.id} className="item-row">
-            <div className="item-main">
-              <div className="item-name-group">
-                <span className="item-name">{goal.name}</span>
-                <span className={`badge ${goal.priority==='critical'?'badge-critical':goal.priority==='need'?'badge-at-risk':'badge-funded'}`}>
-                  {categories.find(c => c.category_type === 'goal_priority' && c.code === goal.priority)?.display_name || goal.priority}
-                </span>
-              </div>
-              <div className="item-sub">
-                Target Year: {goal.target_year} ({goal.target_year - currentYear} yrs)
-                {goal.goal_type === 'recurring' && ` • Recurring for ${goal.duration_years || 1} yrs @ ${goal.step_up_pct || 0}% step-up`}
-              </div>
-            </div>
-            <div className="item-meta">
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '18px', fontWeight: 900, color: '#2D1B69' }}>
-                  {fmt(goal.present_value)}
+        {(filter === 'all' ? goals : goals.filter(g => g.priority === filter)).map(goal => {
+          const active = goal.is_active === true || goal.is_active === 1 || goal.is_active === '1' || goal.is_active === undefined || goal.is_active === null;
+          return (
+            <div key={goal.id} className="item-row" style={{ opacity: active ? 1 : 0.65, filter: active ? 'none' : 'grayscale(30%)' }}>
+              <div className="item-main">
+                <div className="item-name-group">
+                  <span className="item-name">{goal.name}</span>
+                  <span className={`badge ${goal.priority==='critical'?'badge-critical':goal.priority==='need'?'badge-at-risk':'badge-funded'}`}>
+                    {categories.find(c => c.category_type === 'goal_priority' && c.code === goal.priority)?.display_name || goal.priority}
+                  </span>
+                  {!active && (
+                    <span className="badge badge-at-risk" style={{fontSize: '10px'}}>
+                      ⏸️ Paused ("What-If")
+                    </span>
+                  )}
                 </div>
-                <div className="item-sub" style={{textTransform: 'uppercase', letterSpacing: '0.5px'}}>Present Value</div>
-                <div style={{ fontSize: '11px', color: '#9B8EC4', marginTop: '4px', fontWeight: 600 }}>
-                  Est FV: {fmt(calculateEstimatedFV(goal))}
+                <div className="item-sub">
+                  Target Year: {goal.target_year} ({goal.target_year - currentYear} yrs)
+                  {goal.goal_type === 'recurring' && ` • Recurring for ${goal.duration_years || 1} yrs @ ${goal.step_up_pct || 0}% step-up`}
                 </div>
               </div>
-              <div className="item-actions">
-                <button className="btn-icon" onClick={() => { setGoalType(goal.goal_type); setModal({open: true, data: goal}); }}>✏️</button>
-                <button className="btn-icon" onClick={() => handleDelete(goal.id)}>🗑️</button>
+              <div className="item-meta">
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#2D1B69' }}>
+                    {fmt(goal.present_value)}
+                  </div>
+                  <div className="item-sub" style={{textTransform: 'uppercase', letterSpacing: '0.5px'}}>Present Value</div>
+                  <div style={{ fontSize: '11px', color: '#9B8EC4', marginTop: '4px', fontWeight: 600 }}>
+                    Est FV: {fmt(calculateEstimatedFV(goal))}
+                  </div>
+                </div>
+                <div className="item-actions">
+                  <button 
+                    className="btn-secondary" 
+                    style={{
+                      padding: '5px 12px', 
+                      fontSize: '11px', 
+                      borderRadius: '50px',
+                      background: active ? '#D1FAE5' : '#F3F4F6',
+                      color: active ? '#065F46' : '#6B7280',
+                      border: active ? '1.5px solid #10B981' : '1.5px solid #D1D5DB'
+                    }}
+                    onClick={() => handleToggleActive(goal)}
+                    title={active ? "Click to pause in simulation" : "Click to activate in simulation"}
+                  >
+                    {active ? '🟢 Active' : '⏸️ Paused'}
+                  </button>
+                  <button className="btn-icon" onClick={() => openModalForGoal(goal)}>✏️</button>
+                  <button className="btn-icon" onClick={() => handleDelete(goal.id)}>🗑️</button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {goals.length === 0 && <div className="empty-state">No goals found. Plan your future!</div>}
       </div>
 
@@ -182,6 +237,18 @@ export default function Goals({ profileId, showToast, categories = [] }) {
                   </div>
                 </div>
               )}
+              <div className="form-group" style={{display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '8px'}}>
+                <input 
+                  type="checkbox" 
+                  id="goal_is_active"
+                  checked={isActive} 
+                  onChange={e => setIsActive(e.target.checked)}
+                  style={{width: '18px', height: '18px', cursor: 'pointer', accentColor: '#7C3AED'}}
+                />
+                <label htmlFor="goal_is_active" style={{fontSize: '13px', fontWeight: 800, color: '#2D1B69', cursor: 'pointer'}}>
+                  Active in Simulation (Uncheck to pause in "What-If" testing)
+                </label>
+              </div>
               <div className="modal-footer">
                 <button type="button" className="btn-secondary" onClick={() => setModal({open: false, data: null})}>Cancel</button>
                 <button type="submit" className="btn-primary">Save Goal</button>

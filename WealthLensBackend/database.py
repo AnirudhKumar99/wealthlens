@@ -81,8 +81,16 @@ def init_db():
         inflation_rate REAL DEFAULT 6,
         goal_type TEXT DEFAULT 'lump_sum',
         duration_years INTEGER DEFAULT 1,
-        step_up_pct REAL DEFAULT 0
+        step_up_pct REAL DEFAULT 0,
+        is_active INTEGER DEFAULT 1
     )""")
+    
+    try:
+        c.execute("ALTER TABLE goals ADD COLUMN is_active INTEGER DEFAULT 1")
+    except Exception:
+        pass
+
+    c.execute("UPDATE goals SET is_active = 1 WHERE is_active IS NULL")
     
     c.execute("""CREATE TABLE IF NOT EXISTS sips (
         id TEXT PRIMARY KEY,

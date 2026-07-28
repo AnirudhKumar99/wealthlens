@@ -81,6 +81,10 @@ def build_outflow_schedule(goals: list, base_year: int, end_year: int) -> dict:
     schedule: dict[int, float] = {}
 
     for goal in goals:
+        is_act = goal.get("is_active")
+        if is_act is not None and str(is_act).lower() in ("false", "0"):
+            continue
+
         target_year = int(goal.get("target_year") or base_year + 5)
         pv    = float(goal.get("present_value") or 0)
         r_inf = float(goal.get("inflation_rate") or 6)
@@ -150,8 +154,8 @@ def _health_score(fi_ratio: float, savings_rate_pct: float, blended_r: float,
     if not exhausted:
         score += 15
 
-    # Critical goals funded (0-10)
-    critical = [g for g in goal_details if g["priority"] == "critical"]
+    # Critical goals funded (0-10) — only evaluate active goals
+    critical = [g for g in goal_details if g["priority"] == "critical" and g.get("status") != "paused"]
     if critical:
         funded = sum(1 for g in critical if g["status"] == "funded")
         score += int(10 * funded / len(critical))
@@ -411,8 +415,15 @@ def run_simulation(profile: dict, assets: list, goals: list,
     portfolio    = sum(float(a.get("value") or 0) for a in assets)
     initial_port = portfolio
 
+    # Filter active goals only for simulation calculations (handle int 0/1, bool True/False, and str '0'/'false')
+    active_goals = [
+        g for g in (goals or []) 
+        if g.get("is_active") is not False 
+        and str(g.get("is_active", 1)).lower() not in ("false", "0")
+    ]
+
     # Goal outflow schedule
-    outflow_sched = build_outflow_schedule(goals, base_year, end_year)
+    outflow_sched = build_outflow_schedule(active_goals, base_year, end_year)
 
     # ── Simulation loop ──────────────────────────────────────────
     yearly_data: list[dict] = []
@@ -471,7 +482,7 @@ def run_simulation(profile: dict, assets: list, goals: list,
 
         # Track goals triggering this year
         year_goals = []
-        for g in (goals or []):
+        for g in active_goals:
             start = int(g.get("target_year") or year)
             gtype = g.get("goal_type", "lump_sum")
             duration = int(g.get("duration_years") or 1) if gtype == "recurring" else 1
@@ -678,8 +689,12 @@ def _build_goal_details(
             
         port = port_map.get(target_year, 0.0)
 
-        # Status: funded if portfolio ≥ discounted cost at target year
-        if port >= discounted_cost:
+        is_active = bool(goal.get("is_active", True))
+
+        # Status: paused if goal is inactive, else funded/at_risk/critical based on portfolio
+        if not is_active:
+            status = "paused"
+        elif port >= discounted_cost:
             status = "funded"
         elif port >= discounted_cost * 0.5:
             status = "at_risk"
@@ -695,6 +710,7 @@ def _build_goal_details(
             "target_year":         target_year,
             "years_away":          yrs,
             "status":              status,
+            "is_active":           is_active,
             "goal_type":           goal.get("goal_type", "lump_sum"),
             "portfolio_at_target": round(port, 2),
             "gap":                 round(max(0.0, discounted_cost - port), 2),
