@@ -36,7 +36,7 @@ class AssetItem(BaseModel):
     name: str = Field(default="")
     asset_class: str = Field(default="equity")
     value: float = Field(default=0.0, ge=0)
-    return_rate: float = Field(default=8.0, ge=0, le=100)
+    return_rate: float = Field(default=8.0, ge=0)
 
 
 class GoalItem(BaseModel):
@@ -60,7 +60,7 @@ class SipItem(BaseModel):
     asset_class: str = Field(default="equity")
     monthly_amount: float = Field(default=0.0, ge=0)
     step_up_pct: float = Field(default=0.0, ge=0, le=100)
-    return_rate: float = Field(default=12.0, ge=0, le=100)
+    return_rate: float = Field(default=12.0, ge=0)
     start_year: int = Field(default=2026)
     end_year: Optional[int] = Field(default=None)
 

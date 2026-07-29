@@ -424,6 +424,7 @@ select.form-input {
 .badge-equity { background: #EDE9FE; color: #5B21B6; }
 .badge-debt { background: #DBEAFE; color: #1E40AF; }
 .badge-gold { background: #FEF3C7; color: #92400E; }
+.badge-hybrid { background: #E0F2FE; color: #0C4A6E; }
 .badge-real-estate { background: #D1FAE5; color: #065F46; }
 
 /* Health gauge ring */

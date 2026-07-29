@@ -164,6 +164,7 @@ def init_db():
         default_categories = [
             ('asset_class', 'equity', 'Equity'),
             ('asset_class', 'debt', 'Debt'),
+            ('asset_class', 'hybrid', 'Hybrid'),
             ('asset_class', 'gold', 'Gold'),
             ('asset_class', 'real_estate', 'Real Estate'),
             ('goal_priority', 'critical', 'Critical'),
@@ -184,6 +185,10 @@ def init_db():
         ('policy_type', 'health_other', 'Health / Other Insurance'),
     ]
     c.executemany("INSERT OR IGNORE INTO categories (category_type, code, display_name) VALUES (?, ?, ?)", policy_categories)
+
+    # Ensure hybrid asset class exists (added later)
+    c.execute("INSERT OR IGNORE INTO categories (category_type, code, display_name) VALUES (?, ?, ?)",
+              ('asset_class', 'hybrid', 'Hybrid'))
         
     # Seed robust middle-class profile if no profiles exist
     if c.execute("SELECT COUNT(*) FROM profiles").fetchone()[0] == 0:
