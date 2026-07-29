@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Brush } from 'recharts';
 import { fmt, fmtShort } from '../api/client';
 
 export default function FamilyDashboard({ familyData, onSelectProfile }) {
@@ -45,13 +45,15 @@ export default function FamilyDashboard({ familyData, onSelectProfile }) {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <div style={{ backgroundColor: 'white', padding: '14px', border: '2px solid #E0D7FF', borderRadius: '16px', fontFamily: 'Nunito', boxShadow: '0 8px 16px rgba(0,0,0,0.1)', minWidth: '220px' }}>
+        <div style={{ backgroundColor: 'white', padding: '14px', border: '2px solid #E0D7FF', borderRadius: '16px', fontFamily: 'Nunito', boxShadow: '0 8px 16px rgba(0,0,0,0.12)', minWidth: '240px' }}>
           <div style={{ fontWeight: 'bold', marginBottom: '6px', color: '#6B5B95', fontSize: '13px' }}>
             📅 Year {label}
           </div>
+
           <div style={{ color: '#7C3AED', fontWeight: '900', fontSize: '16px', marginBottom: '8px', borderBottom: '1px solid #F0EAFF', paddingBottom: '6px' }}>
-            🏠 Household Total: {fmt(data.family_total)}
+            🏠 Household Net Worth: {fmt(data.family_total)}
           </div>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {members.map((m, idx) => {
               const val = data[m.name] || 0;
@@ -63,6 +65,21 @@ export default function FamilyDashboard({ familyData, onSelectProfile }) {
               );
             })}
           </div>
+
+          {data.goal_events && data.goal_events.length > 0 && (
+            <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed #E0D7FF', color: '#D97706', fontSize: '12px', fontWeight: 'bold' }}>
+              {data.goal_events.map((g, idx) => (
+                <div key={idx} style={{ marginBottom: '4px' }}>
+                  🎯 {g.owner}: {g.name}
+                  {g.outflow > 0 && (
+                    <span style={{ color: '#B45309', marginLeft: '6px', fontSize: '11px', fontWeight: 'normal' }}>
+                      ({fmt(g.outflow)})
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       );
     }
@@ -108,11 +125,12 @@ export default function FamilyDashboard({ familyData, onSelectProfile }) {
         </div>
       </div>
 
-      {/* Trajectory Growth Chart */}
+      {/* Trajectory Growth Chart with Timeline Zooming */}
       <div className="clay-card card-sky" style={{ marginBottom: '24px' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
           <div className="section-title" style={{ margin: 0, fontSize: '18px' }}>
             <span>📊 Family Wealth Trajectory & Growth Projection</span>
+            <span className="info-icon" data-tooltip="Use the slider at the bottom of the chart to zoom into specific decade timelines. Hover over any year to inspect member wealth contributions and goal events in Rupees.">i</span>
           </div>
 
           {/* Toggle buttons for Area vs Line */}
@@ -134,7 +152,7 @@ export default function FamilyDashboard({ familyData, onSelectProfile }) {
           </div>
         </div>
 
-        <div style={{ width: '100%', height: 340 }}>
+        <div style={{ width: '100%', height: 380 }}>
           <ResponsiveContainer>
             {chartType === 'area' ? (
               <AreaChart data={trajectory} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
@@ -143,17 +161,17 @@ export default function FamilyDashboard({ familyData, onSelectProfile }) {
                     const color = MEMBER_COLORS[idx % MEMBER_COLORS.length];
                     return (
                       <linearGradient key={m.name} id={`grad-${idx}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={color} stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor={color} stopOpacity={0.25}/>
+                        <stop offset="5%" stopColor={color} stopOpacity={0.85}/>
+                        <stop offset="95%" stopColor={color} stopOpacity={0.3}/>
                       </linearGradient>
                     );
                   })}
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E0D7FF" />
-                <XAxis dataKey="year" stroke="#6B5B95" tick={{ fill: '#6B5B95', fontSize: 12 }} />
-                <YAxis stroke="#6B5B95" tick={{ fill: '#6B5B95', fontSize: 12 }} tickFormatter={fmtShort} />
+                <XAxis dataKey="year" stroke="#6B5B95" tick={{ fill: '#6B5B95', fontSize: 12, fontFamily: 'Nunito' }} />
+                <YAxis stroke="#6B5B95" tick={{ fill: '#6B5B95', fontSize: 12, fontFamily: 'Nunito' }} tickFormatter={(v) => fmtShort(v, 'INR')} width={70} />
                 <Tooltip content={<CustomTooltip />} />
-                <Legend iconType="circle" wrapperStyle={{ paddingTop: '10px' }} />
+                <Legend iconType="circle" wrapperStyle={{ paddingTop: '8px' }} />
                 
                 {members.map((m, idx) => (
                   <Area
@@ -167,14 +185,17 @@ export default function FamilyDashboard({ familyData, onSelectProfile }) {
                     strokeWidth={2}
                   />
                 ))}
+
+                {/* Timeline Zoom Slider Brush */}
+                <Brush dataKey="year" height={28} stroke="#7C3AED" fill="#F0EAFF" tickFormatter={() => ''} />
               </AreaChart>
             ) : (
               <LineChart data={trajectory} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E0D7FF" />
-                <XAxis dataKey="year" stroke="#6B5B95" tick={{ fill: '#6B5B95', fontSize: 12 }} />
-                <YAxis stroke="#6B5B95" tick={{ fill: '#6B5B95', fontSize: 12 }} tickFormatter={fmtShort} />
+                <XAxis dataKey="year" stroke="#6B5B95" tick={{ fill: '#6B5B95', fontSize: 12, fontFamily: 'Nunito' }} />
+                <YAxis stroke="#6B5B95" tick={{ fill: '#6B5B95', fontSize: 12, fontFamily: 'Nunito' }} tickFormatter={(v) => fmtShort(v, 'INR')} width={70} />
                 <Tooltip content={<CustomTooltip />} />
-                <Legend iconType="circle" wrapperStyle={{ paddingTop: '10px' }} />
+                <Legend iconType="circle" wrapperStyle={{ paddingTop: '8px' }} />
                 
                 <Line
                   type="monotone"
@@ -182,7 +203,14 @@ export default function FamilyDashboard({ familyData, onSelectProfile }) {
                   name="🏠 Household Total"
                   stroke="#2D1B69"
                   strokeWidth={3.5}
-                  dot={false}
+                  dot={(props) => {
+                    const { cx, cy, payload } = props;
+                    if (payload.goal_events && payload.goal_events.length > 0) {
+                      return <circle cx={cx} cy={cy} r={6} fill="#D97706" stroke="white" strokeWidth={2} key={`dot-${payload.year}`} style={{ filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.2))' }} />;
+                    }
+                    return null;
+                  }}
+                  activeDot={{ r: 8, fill: '#2D1B69', stroke: 'white', strokeWidth: 2 }}
                 />
                 
                 {members.map((m, idx) => (
@@ -196,6 +224,9 @@ export default function FamilyDashboard({ familyData, onSelectProfile }) {
                     dot={false}
                   />
                 ))}
+
+                {/* Timeline Zoom Slider Brush */}
+                <Brush dataKey="year" height={28} stroke="#7C3AED" fill="#F0EAFF" tickFormatter={() => ''} />
               </LineChart>
             )}
           </ResponsiveContainer>

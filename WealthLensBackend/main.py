@@ -294,6 +294,7 @@ def api_get_family_summary(authorization: Optional[str] = Header(None)):
     profile_sims = {}
     health_scores = []
     all_years = set()
+    goal_events_by_year = {}
 
     for p in profiles:
         pid = p["id"]
@@ -330,13 +331,25 @@ def api_get_family_summary(authorization: Optional[str] = Header(None)):
             val = float(yd.get("portfolio_value", 0))
             y_map[yr] = val
             all_years.add(yr)
+
+            gevents = yd.get("goal_events", [])
+            if gevents:
+                if yr not in goal_events_by_year:
+                    goal_events_by_year[yr] = []
+                for ge in gevents:
+                    goal_events_by_year[yr].append({
+                        "owner": pname,
+                        "name": ge.get("name"),
+                        "outflow": ge.get("outflow", 0)
+                    })
+
         profile_sims[pname] = y_map
 
     sorted_years = sorted(list(all_years))
     yearly_trajectory = []
 
     for yr in sorted_years:
-        entry = {"year": yr, "family_total": 0.0}
+        entry = {"year": yr, "family_total": 0.0, "goal_events": goal_events_by_year.get(yr, [])}
         fam_tot = 0.0
         for p in profiles:
             pname = p.get("family_name", "Member")
