@@ -27,6 +27,7 @@ export const api = {
   updateProfile: (id, data) => request('PUT', `/api/profiles/${id}`, data),
   deleteProfile: (id) => request('DELETE', `/api/profiles/${id}`),
   getProfile: (id) => request('GET', `/api/profiles/${id}`),
+  getFamilySummary: () => request('GET', '/api/family/summary'),
 
   // --- Scoped Items ---
   // Assets

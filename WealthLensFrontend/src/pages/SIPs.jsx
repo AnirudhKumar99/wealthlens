@@ -2,19 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { api, fmt } from '../api/client';
 import NumberInput from '../components/NumberInput';
 
-export default function SIPs({ profileId, showToast, categories = [] }) {
+export default function SIPs({ profileId, isFamilyMode, familyData, showToast, categories = [] }) {
   const [sips, setSips] = useState([]);
   const [modal, setModal] = useState({ open: false, data: null });
   const [filter, setFilter] = useState('all');
+  const [personFilter, setPersonFilter] = useState('all');
 
   const loadSips = () => {
-    if (!profileId) return;
-    api.getSips(profileId).then(setSips).catch(console.error);
+    if (isFamilyMode && familyData) {
+      setSips(familyData.combined_sips || []);
+    } else if (profileId) {
+      api.getSips(profileId).then(setSips).catch(console.error);
+    }
   };
 
-  useEffect(() => { loadSips(); }, [profileId]);
+  useEffect(() => { loadSips(); }, [profileId, isFamilyMode, familyData]);
 
-  const filteredSips = filter === 'all' ? sips : sips.filter(s => s.asset_class === filter);
+  const filteredSips = sips.filter(s => {
+    const matchesClass = filter === 'all' || s.asset_class === filter;
+    const matchesPerson = personFilter === 'all' || s.owner_name === personFilter;
+    return matchesClass && matchesPerson;
+  });
   const totalMonthly = filteredSips.reduce((sum, sip) => sum + sip.monthly_amount, 0);
   const totalAnnual = totalMonthly * 12;
 
@@ -86,12 +94,29 @@ export default function SIPs({ profileId, showToast, categories = [] }) {
         </div>
       </div>
 
+      {isFamilyMode && (
+        <div style={{ marginBottom: '14px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <span style={{ fontSize: '13px', fontWeight: 800, color: '#6B5B95' }}>👤 Family Member:</span>
+          <select className="form-input" style={{ width: 'auto', padding: '6px 14px', borderRadius: '50px' }} value={personFilter} onChange={e => setPersonFilter(e.target.value)}>
+            <option value="all">👨‍👩‍👧‍👦 All Family Members</option>
+            {Array.from(new Set(sips.map(s => s.owner_name).filter(Boolean))).map(name => (
+              <option key={name} value={name}>👤 {name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div>
         {filteredSips.map(sip => (
           <div key={sip.id} className="item-row">
             <div className="item-main">
-              <div className="item-name-group">
+              <div className="item-name-group" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                 <span className="item-name">{sip.name}</span>
+                {sip.owner_name && (
+                  <span className="badge badge-equity" style={{ fontSize: '11px', background: '#F0EBFF', color: '#7C3AED', border: '1px solid #E0D7FF' }}>
+                    👤 {sip.owner_name}
+                  </span>
+                )}
                 <span className={`badge badge-${sip.asset_class.replace('_', '-')}`}>
                   {categories.find(c => c.category_type === 'asset_class' && c.code === sip.asset_class)?.display_name || sip.asset_class}
                 </span>

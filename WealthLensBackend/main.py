@@ -8,7 +8,8 @@ from database import (
     init_db, get_active_profile_id, set_active_profile_id, get_all_profiles,
     get_profile, create_profile, update_profile, delete_profile,
     get_items, insert_item, update_item, delete_item, get_categories,
-    create_user, get_user_by_email, get_user_by_id, get_profiles_by_user_id
+    create_user, get_user_by_email, get_user_by_id, get_profiles_by_user_id,
+    get_family_summary_data
 )
 from auth import hash_password, verify_password, create_access_token, decode_access_token
 from calculations import run_simulation
@@ -262,6 +263,88 @@ def api_simulate(profile_id: str, authorization: Optional[str] = Header(None)):
         insurance_plans=insurance,
         loans=loans
     )
+
+
+# --- Family Household Summary ---
+@app.get("/api/family/summary")
+def api_get_family_summary(authorization: Optional[str] = Header(None)):
+    uid = get_user_id_from_header(authorization)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Authentication required for family summary")
+    
+    summary = get_family_summary_data(uid)
+    profiles = summary["profiles"]
+    combined_assets = summary["combined_assets"]
+    combined_goals = summary["combined_goals"]
+    combined_sips = summary["combined_sips"]
+    combined_insurance = summary["combined_insurance"]
+    combined_loans = summary["combined_loans"]
+
+    member_cards = []
+    total_assets_val = sum(float(a.get("value", 0)) for a in combined_assets)
+    total_debt_val = sum(float(l.get("principal", 0)) for l in combined_loans)
+    total_monthly_sip = sum(float(s.get("monthly_amount", 0)) for s in combined_sips)
+    net_worth = total_assets_val - total_debt_val
+
+    alloc = {"equity": 0.0, "debt": 0.0, "hybrid": 0.0, "gold": 0.0, "real_estate": 0.0, "other": 0.0}
+    for a in combined_assets:
+        ac = a.get("asset_class", "other")
+        alloc[ac] = alloc.get(ac, 0.0) + float(a.get("value", 0))
+
+    health_scores = []
+    for p in profiles:
+        pid = p["id"]
+        p_assets = [a for a in combined_assets if a.get("profile_id") == pid]
+        p_goals = [g for g in combined_goals if g.get("profile_id") == pid]
+        p_sips = [s for s in combined_sips if s.get("profile_id") == pid]
+        p_insurance = [i for i in combined_insurance if i.get("profile_id") == pid]
+        p_loans = [l for l in combined_loans if l.get("profile_id") == pid]
+        
+        sim = run_simulation(p, p_assets, p_goals, p_sips, p_insurance, p_loans)
+        score = sim.get("health_score", 70)
+        health_scores.append(score)
+        
+        p_val = sum(float(a.get("value", 0)) for a in p_assets)
+        p_sip = sum(float(s.get("monthly_amount", 0)) for s in p_sips)
+        
+        member_cards.append({
+            "id": pid,
+            "name": p.get("family_name", "Member"),
+            "role": p.get("role", "Family Member"),
+            "portfolio_value": p_val,
+            "monthly_sip": p_sip,
+            "asset_count": len(p_assets),
+            "goal_count": len(p_goals),
+            "health_score": score,
+            "current_age": p.get("current_age", 35),
+            "retirement_age": p.get("retirement_age", 60)
+        })
+
+    avg_health_score = int(sum(health_scores) / len(health_scores)) if health_scores else 75
+
+    return {
+        "user_id": uid,
+        "kpis": {
+            "net_worth": net_worth,
+            "total_assets": total_assets_val,
+            "total_debt": total_debt_val,
+            "monthly_sip": total_monthly_sip,
+            "health_score": avg_health_score,
+            "total_members": len(profiles),
+            "total_assets_count": len(combined_assets),
+            "total_goals_count": len(combined_goals),
+            "total_sips_count": len(combined_sips),
+            "total_insurance_count": len(combined_insurance),
+            "total_loans_count": len(combined_loans)
+        },
+        "allocation": alloc,
+        "member_cards": member_cards,
+        "combined_assets": combined_assets,
+        "combined_goals": combined_goals,
+        "combined_sips": combined_sips,
+        "combined_insurance": combined_insurance,
+        "combined_loans": combined_loans
+    }
 
 
 # --- Excel Export ---

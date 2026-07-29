@@ -4,7 +4,7 @@ import NumberInput from '../components/NumberInput';
 
 export default function Profile({ profileId, showToast, onProfileDeleted }) {
   const [form, setForm] = useState({
-    family_name: '', current_age: 35, retirement_age: 60, life_expectancy: 85,
+    family_name: '', role: 'Family Member', current_age: 35, retirement_age: 60, life_expectancy: 85,
     annual_income: 0, savings_rate: 30, monthly_expenses_retirement: 60000,
     retirement_inflation_rate: 6.0, currency: 'INR'
   });
@@ -59,9 +59,22 @@ export default function Profile({ profileId, showToast, onProfileDeleted }) {
 
       <div className="grid-2">
         <form onSubmit={handleSave}>
-          <div className="form-group">
-            <label className="form-label">Profile Name</label>
-            <input name="family_name" value={form.family_name} onChange={handleChange} className="form-input" required />
+          <div className="grid-2">
+            <div className="form-group">
+              <label className="form-label">Profile Name</label>
+              <input name="family_name" value={form.family_name} onChange={handleChange} className="form-input" required />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Relationship / Role</label>
+              <select name="role" value={form.role || 'Family Member'} onChange={handleChange} className="form-input">
+                <option value="Self">Self / Primary</option>
+                <option value="Spouse">Spouse</option>
+                <option value="Parent">Parent</option>
+                <option value="Child">Child</option>
+                <option value="Sibling">Sibling</option>
+                <option value="Family Member">Other Family Member</option>
+              </select>
+            </div>
           </div>
           
           <div className="grid-3">

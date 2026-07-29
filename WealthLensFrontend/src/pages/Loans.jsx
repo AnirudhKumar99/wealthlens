@@ -2,18 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { api, fmt } from '../api/client';
 import NumberInput from '../components/NumberInput';
 
-export default function Loans({ profileId, showToast, categories = [] }) {
+export default function Loans({ profileId, isFamilyMode, familyData, showToast, categories = [] }) {
   const [loans, setLoans] = useState([]);
   const [modal, setModal] = useState({ open: false, data: null });
   const [filter, setFilter] = useState('all');
+  const [personFilter, setPersonFilter] = useState('all');
 
   const loadLoans = () => {
-    if (profileId) api.getLoans(profileId).then(setLoans).catch(console.error);
+    if (isFamilyMode && familyData) {
+      setLoans(familyData.combined_loans || []);
+    } else if (profileId) {
+      api.getLoans(profileId).then(setLoans).catch(console.error);
+    }
   };
 
-  useEffect(() => { loadLoans(); }, [profileId]);
+  useEffect(() => { loadLoans(); }, [profileId, isFamilyMode, familyData]);
 
-  const filteredLoans = filter === 'all' ? loans : loans.filter(l => l.loan_type === filter);
+  const filteredLoans = loans.filter(l => {
+    const matchesType = filter === 'all' || l.loan_type === filter;
+    const matchesPerson = personFilter === 'all' || l.owner_name === personFilter;
+    return matchesType && matchesPerson;
+  });
   const totalPrincipal = filteredLoans.reduce((sum, l) => sum + l.principal, 0);
   
   const calculateEMI = (principal, roiPct, months) => {
@@ -104,6 +113,18 @@ export default function Loans({ profileId, showToast, categories = [] }) {
         </div>
       </div>
 
+      {isFamilyMode && (
+        <div style={{ marginBottom: '14px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <span style={{ fontSize: '13px', fontWeight: 800, color: '#6B5B95' }}>👤 Family Member:</span>
+          <select className="form-input" style={{ width: 'auto', padding: '6px 14px', borderRadius: '50px' }} value={personFilter} onChange={e => setPersonFilter(e.target.value)}>
+            <option value="all">👨‍👩‍👧‍👦 All Family Members</option>
+            {Array.from(new Set(loans.map(l => l.owner_name).filter(Boolean))).map(name => (
+              <option key={name} value={name}>👤 {name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div>
         {filteredLoans.map(loan => {
           const emi = calculateEMI(loan.principal, loan.roi_pct, loan.total_months);
@@ -116,8 +137,13 @@ export default function Loans({ profileId, showToast, categories = [] }) {
             <div key={loan.id} className="item-row" style={{flexDirection: 'column', alignItems: 'stretch'}}>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap'}}>
                 <div className="item-main">
-                  <div className="item-name-group">
+                  <div className="item-name-group" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                     <span className="item-name">{loan.name}</span>
+                    {loan.owner_name && (
+                      <span className="badge badge-equity" style={{ fontSize: '11px', background: '#F0EBFF', color: '#7C3AED', border: '1px solid #E0D7FF' }}>
+                        👤 {loan.owner_name}
+                      </span>
+                    )}
                     <span className="badge badge-debt">
                       {categories.find(c => c.category_type === 'loan_type' && c.code === loan.loan_type)?.display_name || loan.loan_type}
                     </span>

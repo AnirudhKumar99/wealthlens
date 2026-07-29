@@ -2,18 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { api, fmt } from '../api/client';
 import NumberInput from '../components/NumberInput';
 
-export default function Assets({ profileId, showToast, categories = [] }) {
+export default function Assets({ profileId, isFamilyMode, familyData, showToast, categories = [] }) {
   const [assets, setAssets] = useState([]);
   const [modal, setModal] = useState({ open: false, data: null });
   const [filter, setFilter] = useState('all');
+  const [personFilter, setPersonFilter] = useState('all');
 
   const loadAssets = () => {
-    if (profileId) api.getAssets(profileId).then(setAssets).catch(console.error);
+    if (isFamilyMode && familyData) {
+      setAssets(familyData.combined_assets || []);
+    } else if (profileId) {
+      api.getAssets(profileId).then(setAssets).catch(console.error);
+    }
   };
 
-  useEffect(() => { loadAssets(); }, [profileId]);
+  useEffect(() => { loadAssets(); }, [profileId, isFamilyMode, familyData]);
 
-  const filteredAssets = filter === 'all' ? assets : assets.filter(a => a.asset_class === filter);
+  const filteredAssets = assets.filter(a => {
+    const matchesClass = filter === 'all' || a.asset_class === filter;
+    const matchesPerson = personFilter === 'all' || a.owner_name === personFilter;
+    return matchesClass && matchesPerson;
+  });
   const totalValue = filteredAssets.reduce((sum, a) => sum + a.value, 0);
   const blendedReturn = totalValue > 0 ? filteredAssets.reduce((sum, a) => sum + (a.value * a.return_rate), 0) / totalValue : 0;
 
@@ -82,12 +91,29 @@ export default function Assets({ profileId, showToast, categories = [] }) {
         </div>
       </div>
 
+      {isFamilyMode && (
+        <div style={{ marginBottom: '14px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <span style={{ fontSize: '13px', fontWeight: 800, color: '#6B5B95' }}>👤 Family Member:</span>
+          <select className="form-input" style={{ width: 'auto', padding: '6px 14px', borderRadius: '50px' }} value={personFilter} onChange={e => setPersonFilter(e.target.value)}>
+            <option value="all">👨‍👩‍👧‍👦 All Family Members</option>
+            {Array.from(new Set(assets.map(a => a.owner_name).filter(Boolean))).map(name => (
+              <option key={name} value={name}>👤 {name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div>
         {filteredAssets.map(asset => (
           <div key={asset.id} className="item-row">
             <div className="item-main">
-              <div className="item-name-group">
+              <div className="item-name-group" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                 <span className="item-name">{asset.name}</span>
+                {asset.owner_name && (
+                  <span className="badge badge-equity" style={{ fontSize: '11px', background: '#F0EBFF', color: '#7C3AED', border: '1px solid #E0D7FF' }}>
+                    👤 {asset.owner_name}
+                  </span>
+                )}
                 <span className={`badge badge-${asset.asset_class.replace('_', '-')}`}>
                   {categories.find(c => c.category_type === 'asset_class' && c.code === asset.asset_class)?.display_name || asset.asset_class}
                 </span>

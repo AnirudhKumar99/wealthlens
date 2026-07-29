@@ -2,27 +2,31 @@ import React, { useState, useEffect } from 'react';
 import { api, fmt } from '../api/client';
 import NumberInput from '../components/NumberInput';
 
-export default function Goals({ profileId, showToast, categories = [] }) {
+export default function Goals({ profileId, isFamilyMode, familyData, showToast, categories = [] }) {
   const [goals, setGoals] = useState([]);
   const [modal, setModal] = useState({ open: false, data: null });
   const [goalType, setGoalType] = useState('lump_sum');
   const [isActive, setIsActive] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [personFilter, setPersonFilter] = useState('all');
   const currentYear = new Date().getFullYear();
 
   const loadGoals = () => {
-    if (!profileId) return;
-    api.getGoals(profileId).then(data => {
-      const sorted = data.sort((a,b) => {
-        const pMap = { critical: 1, need: 2, want: 3 };
-        if (pMap[a.priority] !== pMap[b.priority]) return pMap[a.priority] - pMap[b.priority];
-        return a.target_year - b.target_year;
-      });
-      setGoals(sorted);
-    }).catch(console.error);
+    if (isFamilyMode && familyData) {
+      setGoals(familyData.combined_goals || []);
+    } else if (profileId) {
+      api.getGoals(profileId).then(data => {
+        const sorted = data.sort((a,b) => {
+          const pMap = { critical: 1, need: 2, want: 3 };
+          if (pMap[a.priority] !== pMap[b.priority]) return pMap[a.priority] - pMap[b.priority];
+          return a.target_year - b.target_year;
+        });
+        setGoals(sorted);
+      }).catch(console.error);
+    }
   };
 
-  useEffect(() => { loadGoals(); }, [profileId]);
+  useEffect(() => { loadGoals(); }, [profileId, isFamilyMode, familyData]);
 
   const calculateEstimatedFV = (goal) => {
     const yrs = Math.max(0, goal.target_year - currentYear);
@@ -127,14 +131,35 @@ export default function Goals({ profileId, showToast, categories = [] }) {
         </div>
       </div>
 
+      {isFamilyMode && (
+        <div style={{ marginBottom: '14px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <span style={{ fontSize: '13px', fontWeight: 800, color: '#6B5B95' }}>👤 Family Member:</span>
+          <select className="form-input" style={{ width: 'auto', padding: '6px 14px', borderRadius: '50px' }} value={personFilter} onChange={e => setPersonFilter(e.target.value)}>
+            <option value="all">👨‍👩‍👧‍👦 All Family Members</option>
+            {Array.from(new Set(goals.map(g => g.owner_name).filter(Boolean))).map(name => (
+              <option key={name} value={name}>👤 {name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div>
-        {(filter === 'all' ? goals : goals.filter(g => g.priority === filter)).map(goal => {
+        {goals.filter(g => {
+          const matchesPriority = filter === 'all' || g.priority === filter;
+          const matchesPerson = personFilter === 'all' || g.owner_name === personFilter;
+          return matchesPriority && matchesPerson;
+        }).map(goal => {
           const active = goal.is_active === true || goal.is_active === 1 || goal.is_active === '1' || goal.is_active === undefined || goal.is_active === null;
           return (
             <div key={goal.id} className="item-row" style={{ opacity: active ? 1 : 0.65, filter: active ? 'none' : 'grayscale(30%)' }}>
               <div className="item-main">
-                <div className="item-name-group">
+                <div className="item-name-group" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                   <span className="item-name">{goal.name}</span>
+                  {goal.owner_name && (
+                    <span className="badge badge-equity" style={{ fontSize: '11px', background: '#F0EBFF', color: '#7C3AED', border: '1px solid #E0D7FF' }}>
+                      👤 {goal.owner_name}
+                    </span>
+                  )}
                   <span className={`badge ${goal.priority==='critical'?'badge-critical':goal.priority==='need'?'badge-at-risk':'badge-funded'}`}>
                     {categories.find(c => c.category_type === 'goal_priority' && c.code === goal.priority)?.display_name || goal.priority}
                   </span>

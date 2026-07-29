@@ -27,6 +27,7 @@ class ProfileModel(BaseModel):
     savings_rate: float = Field(default=30.0, ge=0, le=100)
     monthly_expenses_retirement: float = Field(default=60000.0, ge=0)
     retirement_inflation_rate: float = Field(default=6.0, ge=0, le=50)
+    role: Optional[str] = Field(default="Family Member")
     currency: str = Field(default="INR")
 
 

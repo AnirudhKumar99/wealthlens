@@ -9,6 +9,7 @@ import Insurance from './pages/Insurance';
 import Loans from './pages/Loans';
 import Login from './pages/Login';
 import ProfileSwitcher from './components/ProfileSwitcher';
+import FamilyDashboard from './components/FamilyDashboard';
 
 const TABS = [
   {id:'dashboard',label:'Dashboard',icon:'🏠'},
@@ -23,6 +24,7 @@ const TABS = [
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [simulation, setSimulation] = useState(null);
+  const [familyData, setFamilyData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
   
@@ -55,11 +57,18 @@ export default function App() {
           
           if (userProfs.length > 0) {
             setActiveProfileId(prev => {
-              if (prev && userProfs.some(p => p.id === prev)) return prev;
-              return userProfs[userProfs.length - 1].id;
+              if (prev === 'family' || (prev && userProfs.some(p => p.id === prev))) return prev;
+              return userProfs.length > 1 ? 'family' : userProfs[0].id;
             });
           } else {
             setActiveProfileId(null);
+          }
+
+          try {
+            const famSummary = await api.getFamilySummary();
+            setFamilyData(famSummary);
+          } catch (e) {
+            console.error(e);
           }
         } catch {
           // Token expired or invalid
@@ -109,15 +118,28 @@ export default function App() {
     setProfiles([]);
     setActiveProfileId(null);
     setSimulation(null);
+    setFamilyData(null);
     showToast('👋 Logged out successfully');
   };
 
   const runSimulation = useCallback(async (quiet = false, customToastMsg = '') => {
     if (!activeProfileId) return;
+    if (activeProfileId === 'family') {
+      try {
+        const famSummary = await api.getFamilySummary();
+        setFamilyData(famSummary);
+        if (customToastMsg) showToast(`${customToastMsg} & Family Hub updated! 🏠`);
+      } catch (e) {
+        console.error(e);
+      }
+      return;
+    }
     if (!quiet) setLoading(true);
     try {
       const res = await api.simulate(activeProfileId);
       setSimulation(res);
+      const famSummary = await api.getFamilySummary();
+      setFamilyData(famSummary);
       if (customToastMsg) {
         showToast(`${customToastMsg} & Dashboard updated! 📊`);
       } else if (!quiet) {
@@ -139,37 +161,32 @@ export default function App() {
     }
   }, [activeProfileId, runSimulation]);
 
-  const handleProfileChange = (newId) => {
-    setSimulation(null);
-    setActiveProfileId(newId);
-    setActiveTab('dashboard');
+  const triggerSimulationUpdate = async (toastMsg = '') => {
+    await runSimulation(true, toastMsg);
+    await loadProfiles();
+  };
+
+  const handleProfileChange = (newProfileId) => {
+    setActiveProfileId(newProfileId);
   };
 
   const handleExportExcel = async () => {
-    if (!activeProfileId) {
-      showToast('❌ Please select or create a profile first');
-      return;
-    }
+    const targetId = activeProfileId === 'family' ? profiles[0]?.id : activeProfileId;
+    if (!targetId) return;
     try {
-      showToast('📥 Generating Excel report...');
-      await api.exportExcel(activeProfileId);
-      showToast('✅ Report downloaded successfully!');
-    } catch (err) {
-      console.error(err);
-      showToast('❌ Failed to export Excel report');
+      showToast('⏳ Generating report...');
+      await api.exportExcel(targetId);
+    } catch {
+      showToast('❌ Export failed');
     }
   };
 
-  const triggerSimulationUpdate = (msg) => {
-    runSimulation(true, msg);
-  };
-
-  const handleCreateDefaultProfile = async (name) => {
+  const handleCreateDemoProfile = async () => {
     setLoading(true);
     try {
-      const res = await api.createProfile({
-        user_id: user ? user.id : '',
-        family_name: name || 'My Wealth Profile',
+      await api.createProfile({
+        family_name: 'Sample Profile',
+        role: 'Self',
         current_age: 34,
         retirement_age: 60,
         life_expectancy: 82,
@@ -179,7 +196,7 @@ export default function App() {
         retirement_inflation_rate: 7.0,
         currency: 'INR'
       });
-      showToast('🎉 Profile created & auto-populated!');
+      showToast('🎉 Profile created!');
       await loadProfiles();
     } catch {
       showToast('❌ Failed to create profile');
@@ -208,15 +225,34 @@ export default function App() {
       );
     }
     
+    const isFamilyMode = activeProfileId === 'family';
+    const effectiveProfileId = isFamilyMode ? (profiles[0]?.id || null) : activeProfileId;
+    
     let component = null;
     switch (activeTab) {
-      case 'dashboard': component = <Dashboard simulation={simulation} />; break;
-      case 'profile': component = <Profile profileId={activeProfileId} showToast={(msg) => triggerSimulationUpdate(msg)} onProfileDeleted={loadProfiles} />; break;
-      case 'assets': component = <Assets profileId={activeProfileId} showToast={(msg) => triggerSimulationUpdate(msg)} categories={categories} />; break;
-      case 'goals': component = <Goals profileId={activeProfileId} showToast={(msg) => triggerSimulationUpdate(msg)} categories={categories} />; break;
-      case 'sips': component = <SIPs profileId={activeProfileId} showToast={(msg) => triggerSimulationUpdate(msg)} categories={categories} />; break;
-      case 'insurance': component = <Insurance profileId={activeProfileId} showToast={(msg) => triggerSimulationUpdate(msg)} categories={categories} />; break;
-      case 'loans': component = <Loans profileId={activeProfileId} showToast={(msg) => triggerSimulationUpdate(msg)} categories={categories} />; break;
+      case 'dashboard': 
+        component = isFamilyMode 
+          ? <FamilyDashboard familyData={familyData} onSelectProfile={setActiveProfileId} />
+          : <Dashboard simulation={simulation} />; 
+        break;
+      case 'profile': 
+        component = <Profile profileId={effectiveProfileId} showToast={(msg) => triggerSimulationUpdate(msg)} onProfileDeleted={loadProfiles} />; 
+        break;
+      case 'assets': 
+        component = <Assets profileId={effectiveProfileId} isFamilyMode={isFamilyMode} familyData={familyData} showToast={(msg) => triggerSimulationUpdate(msg)} categories={categories} />; 
+        break;
+      case 'goals': 
+        component = <Goals profileId={effectiveProfileId} isFamilyMode={isFamilyMode} familyData={familyData} showToast={(msg) => triggerSimulationUpdate(msg)} categories={categories} />; 
+        break;
+      case 'sips': 
+        component = <SIPs profileId={effectiveProfileId} isFamilyMode={isFamilyMode} familyData={familyData} showToast={(msg) => triggerSimulationUpdate(msg)} categories={categories} />; 
+        break;
+      case 'insurance': 
+        component = <Insurance profileId={effectiveProfileId} isFamilyMode={isFamilyMode} familyData={familyData} showToast={(msg) => triggerSimulationUpdate(msg)} categories={categories} />; 
+        break;
+      case 'loans': 
+        component = <Loans profileId={effectiveProfileId} isFamilyMode={isFamilyMode} familyData={familyData} showToast={(msg) => triggerSimulationUpdate(msg)} categories={categories} />; 
+        break;
       default: component = null;
     }
 

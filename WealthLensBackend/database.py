@@ -48,6 +48,7 @@ def init_db():
         monthly_expenses_retirement REAL DEFAULT 60000,
         retirement_inflation_rate REAL DEFAULT 6.0,
         currency TEXT DEFAULT 'INR',
+        role TEXT DEFAULT 'Family Member',
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now'))
     )""")
@@ -59,6 +60,11 @@ def init_db():
 
     try:
         c.execute("ALTER TABLE profiles ADD COLUMN retirement_inflation_rate REAL DEFAULT 6.0")
+    except Exception:
+        pass
+
+    try:
+        c.execute("ALTER TABLE profiles ADD COLUMN role TEXT DEFAULT 'Family Member'")
     except Exception:
         pass
     
@@ -324,13 +330,13 @@ def create_profile(profile_id: str, data: dict, seed_defaults: bool = False):
     conn = get_conn()
     annual_inc = float(data.get('annual_income') if data.get('annual_income') is not None else 0.0)
     conn.execute("""INSERT INTO profiles 
-        (id, user_id, family_name, current_age, retirement_age, life_expectancy, annual_income, savings_rate, monthly_expenses_retirement, retirement_inflation_rate, currency)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (id, user_id, family_name, current_age, retirement_age, life_expectancy, annual_income, savings_rate, monthly_expenses_retirement, retirement_inflation_rate, currency, role)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (profile_id, data.get('user_id'), data.get('family_name', 'My Profile'), data.get('current_age', 34),
          data.get('retirement_age', 60), data.get('life_expectancy', 82),
          annual_inc, data.get('savings_rate', 30.0),
          data.get('monthly_expenses_retirement', 40000), data.get('retirement_inflation_rate', 7.0),
-         data.get('currency', 'INR'))
+         data.get('currency', 'INR'), data.get('role', 'Family Member'))
     )
     if seed_defaults:
         seed_profile_defaults(conn, profile_id)
@@ -341,18 +347,74 @@ def update_profile(profile_id: str, data: dict):
     conn = get_conn()
     conn.execute("""UPDATE profiles SET
         family_name=?, current_age=?, retirement_age=?, life_expectancy=?,
-        annual_income=?, savings_rate=?, monthly_expenses_retirement=?, retirement_inflation_rate=?, currency=?,
+        annual_income=?, savings_rate=?, monthly_expenses_retirement=?, retirement_inflation_rate=?, currency=?, role=?,
         updated_at=datetime('now')
         WHERE id=?""",
         (data.get('family_name', 'My Family'), data.get('current_age', 35),
          data.get('retirement_age', 60), data.get('life_expectancy', 85),
          data.get('annual_income', 0), data.get('savings_rate', 30),
          data.get('monthly_expenses_retirement', 60000), data.get('retirement_inflation_rate', 6.0),
-         data.get('currency', 'INR'),
+         data.get('currency', 'INR'), data.get('role', 'Family Member'),
          profile_id)
     )
     conn.commit()
     conn.close()
+
+def get_family_summary_data(user_id: str) -> dict:
+    conn = get_conn()
+    profiles = [dict(r) for r in conn.execute("SELECT * FROM profiles WHERE user_id=? ORDER BY created_at ASC", (user_id,)).fetchall()]
+    
+    combined_assets = []
+    combined_goals = []
+    combined_sips = []
+    combined_insurance = []
+    combined_loans = []
+
+    for p in profiles:
+        pid = p["id"]
+        pname = p["family_name"]
+        prole = p.get("role", "Family Member")
+
+        for item in conn.execute("SELECT * FROM assets WHERE profile_id=?", (pid,)).fetchall():
+            d = dict(item)
+            d["owner_name"] = pname
+            d["owner_role"] = prole
+            combined_assets.append(d)
+
+        for item in conn.execute("SELECT * FROM goals WHERE profile_id=?", (pid,)).fetchall():
+            d = dict(item)
+            d["owner_name"] = pname
+            d["owner_role"] = prole
+            combined_goals.append(d)
+
+        for item in conn.execute("SELECT * FROM sips WHERE profile_id=?", (pid,)).fetchall():
+            d = dict(item)
+            d["owner_name"] = pname
+            d["owner_role"] = prole
+            combined_sips.append(d)
+
+        for item in conn.execute("SELECT * FROM insurance_plans WHERE profile_id=?", (pid,)).fetchall():
+            d = dict(item)
+            d["owner_name"] = pname
+            d["owner_role"] = prole
+            combined_insurance.append(d)
+
+        for item in conn.execute("SELECT * FROM loans WHERE profile_id=?", (pid,)).fetchall():
+            d = dict(item)
+            d["owner_name"] = pname
+            d["owner_role"] = prole
+            combined_loans.append(d)
+
+    conn.close()
+
+    return {
+        "profiles": profiles,
+        "combined_assets": combined_assets,
+        "combined_goals": combined_goals,
+        "combined_sips": combined_sips,
+        "combined_insurance": combined_insurance,
+        "combined_loans": combined_loans
+    }
 
 def delete_profile(profile_id: str):
     conn = get_conn()

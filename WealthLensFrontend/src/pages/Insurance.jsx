@@ -2,25 +2,30 @@ import React, { useState, useEffect } from 'react';
 import { api, fmt } from '../api/client';
 import NumberInput from '../components/NumberInput';
 
-export default function Insurance({ profileId, showToast }) {
+export default function Insurance({ profileId, isFamilyMode, familyData, showToast }) {
   const [plans, setPlans] = useState([]);
   const [categories, setCategories] = useState([]);
   const [filter, setFilter] = useState('all');
+  const [personFilter, setPersonFilter] = useState('all');
   const [modal, setModal] = useState({ open: false, data: null });
   const [isCompounded, setIsCompounded] = useState(false);
 
   const loadData = () => {
-    if (profileId) {
+    if (isFamilyMode && familyData) {
+      setPlans(familyData.combined_insurance || []);
+    } else if (profileId) {
       api.getInsurance(profileId).then(setPlans).catch(console.error);
     }
     api.getCategories().then(setCategories).catch(console.error);
   };
 
-  useEffect(() => { loadData(); }, [profileId]);
+  useEffect(() => { loadData(); }, [profileId, isFamilyMode, familyData]);
 
-  const filteredPlans = filter === 'all' 
-    ? plans 
-    : plans.filter(p => (p.policy_type || 'endowment') === filter);
+  const filteredPlans = plans.filter(p => {
+    const matchesPolicy = filter === 'all' || (p.policy_type || 'endowment') === filter;
+    const matchesPerson = personFilter === 'all' || p.owner_name === personFilter;
+    return matchesPolicy && matchesPerson;
+  });
 
   const totalIncome = plans.reduce((sum, p) => sum + (p.annual_income || 0), 0);
   const totalBonus = plans.reduce((sum, p) => sum + (p.terminal_bonus || 0), 0);
@@ -120,6 +125,18 @@ export default function Insurance({ profileId, showToast }) {
         </div>
       </div>
 
+      {isFamilyMode && (
+        <div style={{ marginBottom: '14px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <span style={{ fontSize: '13px', fontWeight: 800, color: '#6B5B95' }}>👤 Family Member:</span>
+          <select className="form-input" style={{ width: 'auto', padding: '6px 14px', borderRadius: '50px' }} value={personFilter} onChange={e => setPersonFilter(e.target.value)}>
+            <option value="all">👨‍👩‍👧‍👦 All Family Members</option>
+            {Array.from(new Set(plans.map(p => p.owner_name).filter(Boolean))).map(name => (
+              <option key={name} value={name}>👤 {name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div>
         {filteredPlans.map(plan => {
           const ptype = plan.policy_type || 'endowment';
@@ -128,8 +145,13 @@ export default function Insurance({ profileId, showToast }) {
           return (
             <div key={plan.id} className="item-row">
               <div className="item-main">
-                <div className="item-name-group">
+                <div className="item-name-group" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                   <span className="item-name">{plan.name}</span>
+                  {plan.owner_name && (
+                    <span className="badge badge-equity" style={{ fontSize: '11px', background: '#F0EBFF', color: '#7C3AED', border: '1px solid #E0D7FF' }}>
+                      👤 {plan.owner_name}
+                    </span>
+                  )}
                   <span className={`badge ${getPolicyBadge(ptype)}`}>
                     {ptypeName}
                   </span>
