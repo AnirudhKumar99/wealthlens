@@ -100,13 +100,14 @@ export default function App() {
     } else {
       setActiveProfileId(null);
     }
-    loadProfiles();
   };
 
   const handleLogout = () => {
     localStorage.removeItem('wealthlens_token');
     setToken('');
     setUser(null);
+    setProfiles([]);
+    setActiveProfileId(null);
     setSimulation(null);
     showToast('👋 Logged out successfully');
   };

@@ -1,6 +1,6 @@
 import uuid
 from typing import Optional
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Query
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from models import ProfileModel, AssetItem, GoalItem, SipItem, InsurancePlanItem, LoanItem, UserRegisterModel, UserLoginModel
@@ -36,6 +36,23 @@ def read_root():
 def api_get_categories():
     return get_categories()
 
+# --- Auth Helpers ---
+def get_user_id_from_header(authorization: Optional[str] = Header(None)) -> Optional[str]:
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+        payload = decode_access_token(token)
+        if payload:
+            return payload.get("sub")
+    return None
+
+def verify_user_profile_access(profile_id: str, user_id: Optional[str]) -> dict:
+    profile = get_profile(profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    if user_id and profile.get("user_id") and profile.get("user_id") != user_id:
+        raise HTTPException(status_code=403, detail="Access denied to this profile")
+    return profile
+
 # --- Auth Routes ---
 @app.post("/api/auth/register")
 def api_register(payload: UserRegisterModel):
@@ -47,12 +64,27 @@ def api_register(payload: UserRegisterModel):
     pw_hash, salt = hash_password(payload.password)
     user = create_user(user_id, payload.username, payload.email, pw_hash, salt)
     
+    # Automatically create a fresh, clean default profile for this user (NO sample data seeded)
+    pid = str(uuid.uuid4())
+    create_profile(pid, {
+        "user_id": user_id,
+        "family_name": f"{payload.username}'s Wealth Profile",
+        "current_age": 34,
+        "retirement_age": 60,
+        "life_expectancy": 82,
+        "annual_income": 0,
+        "savings_rate": 30.0,
+        "monthly_expenses_retirement": 40000,
+        "retirement_inflation_rate": 6.0,
+        "currency": "INR"
+    }, seed_defaults=False)
+    
     token = create_access_token({"sub": user_id, "email": payload.email, "username": payload.username})
     return {
         "access_token": token,
         "token_type": "bearer",
         "user": user,
-        "active_profile_id": None
+        "active_profile_id": pid
     }
 
 @app.post("/api/auth/login")
@@ -62,9 +94,24 @@ def api_login(payload: UserLoginModel):
         raise HTTPException(status_code=401, detail="Invalid email or password.")
     
     user_profiles = get_profiles_by_user_id(user["id"])
-    active_pid = user_profiles[0]["id"] if user_profiles else get_active_profile_id()
-    if active_pid:
-        set_active_profile_id(active_pid)
+    if not user_profiles:
+        pid = str(uuid.uuid4())
+        create_profile(pid, {
+            "user_id": user["id"],
+            "family_name": f"{user['username']}'s Wealth Profile",
+            "current_age": 34,
+            "retirement_age": 60,
+            "life_expectancy": 82,
+            "annual_income": 0,
+            "savings_rate": 30.0,
+            "monthly_expenses_retirement": 40000,
+            "retirement_inflation_rate": 6.0,
+            "currency": "INR"
+        }, seed_defaults=False)
+        active_pid = pid
+        user_profiles = get_profiles_by_user_id(user["id"])
+    else:
+        active_pid = user_profiles[0]["id"]
         
     token = create_access_token({"sub": user["id"], "email": user["email"], "username": user["username"]})
     return {
@@ -94,75 +141,79 @@ def api_auth_me(token: str = ""):
 
 # --- Profile Management ---
 @app.get("/api/profiles/active")
-def api_get_active_profile():
+def api_get_active_profile(authorization: Optional[str] = Header(None)):
+    uid = get_user_id_from_header(authorization)
+    if uid:
+        user_profs = get_profiles_by_user_id(uid)
+        if user_profs:
+            return {"active_profile_id": user_profs[0]["id"]}
     pid = get_active_profile_id()
     return {"active_profile_id": pid}
 
 @app.put("/api/profiles/active/{profile_id}")
-def api_set_active_profile(profile_id: str):
-    if not get_profile(profile_id):
-        raise HTTPException(status_code=404, detail="Profile not found")
-    set_active_profile_id(profile_id)
+def api_set_active_profile(profile_id: str, authorization: Optional[str] = Header(None)):
+    uid = get_user_id_from_header(authorization)
+    verify_user_profile_access(profile_id, uid)
+    if not uid:
+        set_active_profile_id(profile_id)
     return {"message": "Active profile updated", "active_profile_id": profile_id}
 
 @app.get("/api/profiles")
 def api_get_profiles(authorization: Optional[str] = Header(None)):
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ")[1]
-        payload = decode_access_token(token)
-        if payload:
-            uid = payload.get("sub")
-            return get_profiles_by_user_id(uid)
-    return get_all_profiles()
+    uid = get_user_id_from_header(authorization)
+    if uid:
+        return get_profiles_by_user_id(uid)
+    # Unauthenticated / guest mode
+    all_profs = get_all_profiles()
+    return [p for p in all_profs if not p.get("user_id")]
 
 @app.post("/api/profiles")
 def api_create_profile(data: ProfileModel, authorization: Optional[str] = Header(None)):
-    user_id = data.user_id
-    if not user_id and authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ")[1]
-        payload = decode_access_token(token)
-        if payload:
-            user_id = payload.get("sub")
+    uid = get_user_id_from_header(authorization)
+    user_id = data.user_id or uid
             
     pid = str(uuid.uuid4())
     pdata = data.model_dump(exclude={"id"})
     if user_id:
         pdata["user_id"] = user_id
-    create_profile(pid, pdata)
-    set_active_profile_id(pid)
+    create_profile(pid, pdata, seed_defaults=False)
+    if not user_id:
+        set_active_profile_id(pid)
     return {"message": "Profile created", "id": pid}
 
 @app.put("/api/profiles/{profile_id}")
-def api_update_profile(profile_id: str, data: ProfileModel):
-    if not get_profile(profile_id):
-        raise HTTPException(status_code=404, detail="Profile not found")
+def api_update_profile(profile_id: str, data: ProfileModel, authorization: Optional[str] = Header(None)):
+    uid = get_user_id_from_header(authorization)
+    verify_user_profile_access(profile_id, uid)
     update_profile(profile_id, data.model_dump(exclude={"id"}))
     return {"message": "Profile updated"}
 
 @app.delete("/api/profiles/{profile_id}")
-def api_delete_profile(profile_id: str):
-    if not get_profile(profile_id):
-        raise HTTPException(status_code=404, detail="Profile not found")
+def api_delete_profile(profile_id: str, authorization: Optional[str] = Header(None)):
+    uid = get_user_id_from_header(authorization)
+    verify_user_profile_access(profile_id, uid)
     delete_profile(profile_id)
     return {"message": "Profile deleted"}
 
 @app.get("/api/profiles/{profile_id}")
-def api_get_profile(profile_id: str):
-    p = get_profile(profile_id)
-    if not p:
-        raise HTTPException(status_code=404, detail="Profile not found")
-    return p
+def api_get_profile(profile_id: str, authorization: Optional[str] = Header(None)):
+    uid = get_user_id_from_header(authorization)
+    return verify_user_profile_access(profile_id, uid)
 
 
 # --- Scoped CRUD Helpers ---
 def scoped_crud(router, prefix, table_name, model_class):
     
     @router.get(f"/api/profiles/{{profile_id}}/{prefix}")
-    def _get_all(profile_id: str):
+    def _get_all(profile_id: str, authorization: Optional[str] = Header(None)):
+        uid = get_user_id_from_header(authorization)
+        verify_user_profile_access(profile_id, uid)
         return get_items(table_name, profile_id)
         
     @router.post(f"/api/profiles/{{profile_id}}/{prefix}")
-    def _create(profile_id: str, data: model_class):
+    def _create(profile_id: str, data: model_class, authorization: Optional[str] = Header(None)):
+        uid = get_user_id_from_header(authorization)
+        verify_user_profile_access(profile_id, uid)
         item_id = str(uuid.uuid4())
         dumped = data.model_dump()
         dumped['id'] = item_id
@@ -171,12 +222,16 @@ def scoped_crud(router, prefix, table_name, model_class):
         return {"id": item_id, "message": "Created"}
         
     @router.put(f"/api/profiles/{{profile_id}}/{prefix}/{{item_id}}")
-    def _update(profile_id: str, item_id: str, data: model_class):
+    def _update(profile_id: str, item_id: str, data: model_class, authorization: Optional[str] = Header(None)):
+        uid = get_user_id_from_header(authorization)
+        verify_user_profile_access(profile_id, uid)
         update_item(table_name, item_id, profile_id, data.model_dump())
         return {"message": "Updated"}
         
     @router.delete(f"/api/profiles/{{profile_id}}/{prefix}/{{item_id}}")
-    def _delete(profile_id: str, item_id: str):
+    def _delete(profile_id: str, item_id: str, authorization: Optional[str] = Header(None)):
+        uid = get_user_id_from_header(authorization)
+        verify_user_profile_access(profile_id, uid)
         delete_item(table_name, item_id, profile_id)
         return {"message": "Deleted"}
 
@@ -189,10 +244,9 @@ scoped_crud(app, "loans", "loans", LoanItem)
 
 # --- Simulation ---
 @app.post("/api/profiles/{profile_id}/simulate")
-def api_simulate(profile_id: str):
-    profile = get_profile(profile_id)
-    if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
+def api_simulate(profile_id: str, authorization: Optional[str] = Header(None)):
+    uid = get_user_id_from_header(authorization)
+    profile = verify_user_profile_access(profile_id, uid)
         
     assets = get_items("assets", profile_id)
     goals = get_items("goals", profile_id)
@@ -212,10 +266,14 @@ def api_simulate(profile_id: str):
 
 # --- Excel Export ---
 @app.get("/api/profiles/{profile_id}/export-excel")
-def api_export_excel(profile_id: str):
-    profile = get_profile(profile_id)
-    if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
+def api_export_excel(profile_id: str, token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
+    uid = get_user_id_from_header(authorization)
+    if not uid and token:
+        payload = decode_access_token(token)
+        if payload:
+            uid = payload.get("sub")
+
+    profile = verify_user_profile_access(profile_id, uid)
         
     assets = get_items("assets", profile_id)
     goals = get_items("goals", profile_id)
@@ -250,4 +308,3 @@ def api_export_excel(profile_id: str):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
-

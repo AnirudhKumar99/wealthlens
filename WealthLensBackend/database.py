@@ -315,18 +315,20 @@ def seed_profile_defaults(conn, profile_id: str):
     conn.executemany("INSERT INTO insurance_plans (id, profile_id, name, annual_premium, premium_end_year, income_start_year, annual_income, income_end_year, terminal_bonus, death_benefit, accidental_rider) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", insurance)
 
 
-def create_profile(profile_id: str, data: dict):
+def create_profile(profile_id: str, data: dict, seed_defaults: bool = False):
     conn = get_conn()
+    annual_inc = float(data.get('annual_income') if data.get('annual_income') is not None else 0.0)
     conn.execute("""INSERT INTO profiles 
         (id, user_id, family_name, current_age, retirement_age, life_expectancy, annual_income, savings_rate, monthly_expenses_retirement, retirement_inflation_rate, currency)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (profile_id, data.get('user_id'), data.get('family_name', 'My Profile'), data.get('current_age', 34),
          data.get('retirement_age', 60), data.get('life_expectancy', 82),
-         data.get('annual_income', 2160000), data.get('savings_rate', 35.0),
+         annual_inc, data.get('savings_rate', 30.0),
          data.get('monthly_expenses_retirement', 40000), data.get('retirement_inflation_rate', 7.0),
          data.get('currency', 'INR'))
     )
-    seed_profile_defaults(conn, profile_id)
+    if seed_defaults:
+        seed_profile_defaults(conn, profile_id)
     conn.commit()
     conn.close()
 
