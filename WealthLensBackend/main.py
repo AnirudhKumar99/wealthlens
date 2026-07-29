@@ -291,9 +291,13 @@ def api_get_family_summary(authorization: Optional[str] = Header(None)):
         ac = a.get("asset_class", "other")
         alloc[ac] = alloc.get(ac, 0.0) + float(a.get("value", 0))
 
+    profile_sims = {}
     health_scores = []
+    all_years = set()
+
     for p in profiles:
         pid = p["id"]
+        pname = p.get("family_name", "Member")
         p_assets = [a for a in combined_assets if a.get("profile_id") == pid]
         p_goals = [g for g in combined_goals if g.get("profile_id") == pid]
         p_sips = [s for s in combined_sips if s.get("profile_id") == pid]
@@ -309,7 +313,7 @@ def api_get_family_summary(authorization: Optional[str] = Header(None)):
         
         member_cards.append({
             "id": pid,
-            "name": p.get("family_name", "Member"),
+            "name": pname,
             "role": p.get("role", "Family Member"),
             "portfolio_value": p_val,
             "monthly_sip": p_sip,
@@ -319,6 +323,28 @@ def api_get_family_summary(authorization: Optional[str] = Header(None)):
             "current_age": p.get("current_age", 35),
             "retirement_age": p.get("retirement_age", 60)
         })
+
+        y_map = {}
+        for yd in sim.get("yearly_data", []):
+            yr = yd.get("year")
+            val = float(yd.get("portfolio_value", 0))
+            y_map[yr] = val
+            all_years.add(yr)
+        profile_sims[pname] = y_map
+
+    sorted_years = sorted(list(all_years))
+    yearly_trajectory = []
+
+    for yr in sorted_years:
+        entry = {"year": yr, "family_total": 0.0}
+        fam_tot = 0.0
+        for p in profiles:
+            pname = p.get("family_name", "Member")
+            val = profile_sims.get(pname, {}).get(yr, 0.0)
+            entry[pname] = val
+            fam_tot += val
+        entry["family_total"] = fam_tot
+        yearly_trajectory.append(entry)
 
     avg_health_score = int(sum(health_scores) / len(health_scores)) if health_scores else 75
 
@@ -339,6 +365,7 @@ def api_get_family_summary(authorization: Optional[str] = Header(None)):
         },
         "allocation": alloc,
         "member_cards": member_cards,
+        "yearly_trajectory": yearly_trajectory,
         "combined_assets": combined_assets,
         "combined_goals": combined_goals,
         "combined_sips": combined_sips,

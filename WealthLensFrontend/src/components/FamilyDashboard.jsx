@@ -1,7 +1,10 @@
-import React from 'react';
-import { fmt } from '../api/client';
+import React, { useState } from 'react';
+import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { fmt, fmtShort } from '../api/client';
 
 export default function FamilyDashboard({ familyData, onSelectProfile }) {
+  const [chartType, setChartType] = useState('area'); // 'area' or 'line'
+
   if (!familyData || !familyData.kpis) {
     return (
       <div className="clay-card card-lavender empty-state animate-fade-in-up" style={{ padding: '40px 24px', textAlign: 'center' }}>
@@ -14,6 +17,7 @@ export default function FamilyDashboard({ familyData, onSelectProfile }) {
   const kpis = familyData.kpis || {};
   const alloc = familyData.allocation || {};
   const members = familyData.member_cards || [];
+  const trajectory = familyData.yearly_trajectory || [];
 
   const totalPortfolio = kpis.total_assets || 0;
   const netWorth = kpis.net_worth || 0;
@@ -29,16 +33,45 @@ export default function FamilyDashboard({ familyData, onSelectProfile }) {
   const debtVal = alloc.debt || 0;
   const hybVal = alloc.hybrid || 0;
   const goldVal = alloc.gold || 0;
-  const reVal = alloc.real_estate || 0;
 
   const eqPct = totalPortfolio > 0 ? (eqVal / totalPortfolio * 100).toFixed(1) : 0;
   const debtPct = totalPortfolio > 0 ? (debtVal / totalPortfolio * 100).toFixed(1) : 0;
   const hybPct = totalPortfolio > 0 ? (hybVal / totalPortfolio * 100).toFixed(1) : 0;
   const goldPct = totalPortfolio > 0 ? (goldVal / totalPortfolio * 100).toFixed(1) : 0;
 
+  const MEMBER_COLORS = ['#7C3AED', '#059669', '#D97706', '#0284C7', '#EC4899', '#8B5CF6'];
+
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div style={{ backgroundColor: 'white', padding: '14px', border: '2px solid #E0D7FF', borderRadius: '16px', fontFamily: 'Nunito', boxShadow: '0 8px 16px rgba(0,0,0,0.1)', minWidth: '220px' }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '6px', color: '#6B5B95', fontSize: '13px' }}>
+            📅 Year {label}
+          </div>
+          <div style={{ color: '#7C3AED', fontWeight: '900', fontSize: '16px', marginBottom: '8px', borderBottom: '1px solid #F0EAFF', paddingBottom: '6px' }}>
+            🏠 Household Total: {fmt(data.family_total)}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {members.map((m, idx) => {
+              const val = data[m.name] || 0;
+              return (
+                <div key={m.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: '700', color: MEMBER_COLORS[idx % MEMBER_COLORS.length] }}>
+                  <span>👤 {m.name} ({m.role}):</span>
+                  <span style={{ marginLeft: '12px' }}>{fmt(val)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="animate-fade-in-up">
-      {/* Title */}
+      {/* Header Title */}
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
         <h2 className="section-title" style={{ margin: 0 }}>
           <span className="title-icon">🏠</span> Family Household Hub
@@ -72,6 +105,100 @@ export default function FamilyDashboard({ familyData, onSelectProfile }) {
           <div className="kpi-label">❤️ Household Health</div>
           <div className="kpi-value" style={{ color: healthColor }}>{healthScore}/100</div>
           <div className="kpi-sub" style={{ fontWeight: 700, color: healthColor }}>{healthLabel}</div>
+        </div>
+      </div>
+
+      {/* Trajectory Growth Chart */}
+      <div className="clay-card card-sky" style={{ marginBottom: '24px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+          <div className="section-title" style={{ margin: 0, fontSize: '18px' }}>
+            <span>📊 Family Wealth Trajectory & Growth Projection</span>
+          </div>
+
+          {/* Toggle buttons for Area vs Line */}
+          <div style={{ display: 'flex', gap: '6px', background: 'rgba(255,255,255,0.8)', padding: '4px', borderRadius: '50px', border: '1px solid #E0D7FF' }}>
+            <button 
+              className={`btn-secondary ${chartType === 'area' ? 'btn-primary' : ''}`}
+              style={{ padding: '4px 14px', fontSize: '12px', borderRadius: '50px' }}
+              onClick={() => setChartType('area')}
+            >
+              📊 Stacked Contribution
+            </button>
+            <button 
+              className={`btn-secondary ${chartType === 'line' ? 'btn-primary' : ''}`}
+              style={{ padding: '4px 14px', fontSize: '12px', borderRadius: '50px' }}
+              onClick={() => setChartType('line')}
+            >
+              📈 Member Comparison
+            </button>
+          </div>
+        </div>
+
+        <div style={{ width: '100%', height: 340 }}>
+          <ResponsiveContainer>
+            {chartType === 'area' ? (
+              <AreaChart data={trajectory} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                <defs>
+                  {members.map((m, idx) => {
+                    const color = MEMBER_COLORS[idx % MEMBER_COLORS.length];
+                    return (
+                      <linearGradient key={m.name} id={`grad-${idx}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={color} stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor={color} stopOpacity={0.25}/>
+                      </linearGradient>
+                    );
+                  })}
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E0D7FF" />
+                <XAxis dataKey="year" stroke="#6B5B95" tick={{ fill: '#6B5B95', fontSize: 12 }} />
+                <YAxis stroke="#6B5B95" tick={{ fill: '#6B5B95', fontSize: 12 }} tickFormatter={fmtShort} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend iconType="circle" wrapperStyle={{ paddingTop: '10px' }} />
+                
+                {members.map((m, idx) => (
+                  <Area
+                    key={m.name}
+                    type="monotone"
+                    dataKey={m.name}
+                    stackId="1"
+                    name={`${m.name} (${m.role})`}
+                    stroke={MEMBER_COLORS[idx % MEMBER_COLORS.length]}
+                    fill={`url(#grad-${idx})`}
+                    strokeWidth={2}
+                  />
+                ))}
+              </AreaChart>
+            ) : (
+              <LineChart data={trajectory} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E0D7FF" />
+                <XAxis dataKey="year" stroke="#6B5B95" tick={{ fill: '#6B5B95', fontSize: 12 }} />
+                <YAxis stroke="#6B5B95" tick={{ fill: '#6B5B95', fontSize: 12 }} tickFormatter={fmtShort} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend iconType="circle" wrapperStyle={{ paddingTop: '10px' }} />
+                
+                <Line
+                  type="monotone"
+                  dataKey="family_total"
+                  name="🏠 Household Total"
+                  stroke="#2D1B69"
+                  strokeWidth={3.5}
+                  dot={false}
+                />
+                
+                {members.map((m, idx) => (
+                  <Line
+                    key={m.name}
+                    type="monotone"
+                    dataKey={m.name}
+                    name={`${m.name} (${m.role})`}
+                    stroke={MEMBER_COLORS[idx % MEMBER_COLORS.length]}
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                ))}
+              </LineChart>
+            )}
+          </ResponsiveContainer>
         </div>
       </div>
 
