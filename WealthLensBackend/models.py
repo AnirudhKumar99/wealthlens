@@ -16,6 +16,11 @@ class UserLoginModel(BaseModel):
     password: str
 
 
+class ChangePasswordModel(BaseModel):
+    old_password: str
+    new_password: str = Field(min_length=4)
+
+
 class ProfileModel(BaseModel):
     id: str = Field(default="")
     user_id: Optional[str] = Field(default="")

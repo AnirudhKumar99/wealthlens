@@ -17,6 +17,7 @@ export const api = {
   register: (data) => request('POST', '/api/auth/register', data),
   login: (data) => request('POST', '/api/auth/login', data),
   getMe: (token) => request('GET', `/api/auth/me?token=${token}`),
+  changePassword: (data) => request('POST', '/api/auth/change-password', data),
 
   // --- Profile Management ---
   getCategories: () => request('GET', '/api/categories'),

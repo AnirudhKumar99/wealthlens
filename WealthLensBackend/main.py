@@ -3,12 +3,12 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Header, Query, UploadFile, File
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
-from models import ProfileModel, AssetItem, GoalItem, SipItem, InsurancePlanItem, LoanItem, UserRegisterModel, UserLoginModel
+from models import ProfileModel, AssetItem, GoalItem, SipItem, InsurancePlanItem, LoanItem, UserRegisterModel, UserLoginModel, ChangePasswordModel
 from database import (
     init_db, get_active_profile_id, set_active_profile_id, get_all_profiles,
     get_profile, create_profile, update_profile, delete_profile,
     get_items, insert_item, update_item, delete_item, get_categories,
-    create_user, get_user_by_email, get_user_by_id, get_profiles_by_user_id,
+    create_user, get_user_by_email, get_user_by_id, get_user_full_by_id, update_user_password, get_profiles_by_user_id,
     get_family_summary_data
 )
 from auth import hash_password, verify_password, create_access_token, decode_access_token
@@ -140,6 +140,25 @@ def api_auth_me(token: str = ""):
         "user": user,
         "profiles": profiles
     }
+
+
+@app.post("/api/auth/change-password")
+def api_change_password(payload: ChangePasswordModel, authorization: Optional[str] = Header(None)):
+    uid = get_user_id_from_header(authorization)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Authentication required")
+        
+    user = get_user_full_by_id(uid)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    if not verify_password(payload.old_password, user["salt"], user["password_hash"]):
+        raise HTTPException(status_code=400, detail="Incorrect current password")
+        
+    new_hash, new_salt = hash_password(payload.new_password)
+    update_user_password(uid, new_hash, new_salt)
+    return {"status": "success", "message": "Password updated successfully"}
+
 
 # --- Profile Management ---
 @app.get("/api/profiles/active")

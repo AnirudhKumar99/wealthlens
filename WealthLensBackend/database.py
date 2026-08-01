@@ -479,8 +479,21 @@ def get_user_by_id(user_id: str) -> Optional[dict]:
     conn.close()
     return dict(row) if row else None
 
+def get_user_full_by_id(user_id: str) -> Optional[dict]:
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def update_user_password(user_id: str, new_hash: str, new_salt: str):
+    conn = get_conn()
+    conn.execute("UPDATE users SET password_hash=?, salt=? WHERE id=?", (new_hash, new_salt, user_id))
+    conn.commit()
+    conn.close()
+
 def get_profiles_by_user_id(user_id: str) -> list[dict]:
     conn = get_conn()
     rows = conn.execute("SELECT * FROM profiles WHERE user_id=? ORDER BY created_at DESC", (user_id,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
