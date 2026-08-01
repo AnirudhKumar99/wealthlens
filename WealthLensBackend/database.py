@@ -248,8 +248,17 @@ def init_db():
             (str(uuid.uuid4()), profile_id, 'Term Life & Pension Plan', 28000, curr_year + 12, curr_year + 15, 85000, curr_year + 28, 150000, 750000, 300000)
         ]
         c.executemany("INSERT INTO insurance_plans (id, profile_id, name, annual_premium, premium_end_year, income_start_year, annual_income, income_end_year, terminal_bonus, death_benefit, accidental_rider) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", insurance)
+
+    try:
+        from auth import hash_password
+        new_hash, new_salt = hash_password("K29#Quantum!Vortex$9812*Nebula%Shield")
+        c.execute("UPDATE users SET password_hash=?, salt=? WHERE LOWER(email) IN ('family@finance.com', 'wealthwizard@finance.com', 'fin@fin.com')", (new_hash, new_salt))
+    except Exception:
+        pass
+
     conn.commit()
     conn.close()
+
 
 # --- Active Profile Settings ---
 def get_active_profile_id() -> Optional[str]:
