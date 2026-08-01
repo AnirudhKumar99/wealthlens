@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from './api/client';
 import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
@@ -186,6 +186,43 @@ export default function App() {
     }
   };
 
+  // --- Import Excel ---
+  const importFileRef = useRef(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importDragOver, setImportDragOver] = useState(false);
+  const [importing, setImporting] = useState(false);
+
+  const handleImportFile = async (file) => {
+    if (!file) return;
+    if (!file.name.endsWith('.xlsx')) {
+      showToast('❌ Only .xlsx files are supported');
+      return;
+    }
+    setImporting(true);
+    try {
+      showToast('⏳ Importing data from Excel...');
+      let result;
+      if (activeProfileId === 'family' || !activeProfileId) {
+        result = await api.importFamilyExcel(file);
+      } else {
+        result = await api.importExcel(activeProfileId, file);
+      }
+      showToast(`✅ ${result.message}`);
+      setShowImportModal(false);
+      // Refresh everything
+      await loadProfiles();
+      if (activeProfileId && activeProfileId !== 'family') {
+        await runSimulation(false);
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('❌ Import failed: ' + (e.message || 'Unknown error'));
+    } finally {
+      setImporting(false);
+      if (importFileRef.current) importFileRef.current.value = '';
+    }
+  };
+
   const handleCreateDemoProfile = async () => {
     setLoading(true);
     try {
@@ -318,9 +355,17 @@ export default function App() {
                 title="Download 6-sheet Excel Financial Report"
                 style={{ borderRadius: '50px', padding: '7px 14px', fontSize: '12px', border: '1.5px solid #A7F3D0', flexShrink: 0, color: '#059669', background: '#ECFDF5' }}
               >
-                📥 Export (.xlsx)
+                📤 Export (.xlsx)
               </button>
             )}
+            <button 
+              className="btn-secondary" 
+              onClick={() => setShowImportModal(true)}
+              title="Import data from an Excel report"
+              style={{ borderRadius: '50px', padding: '7px 14px', fontSize: '12px', border: '1.5px solid #93C5FD', flexShrink: 0, color: '#2563EB', background: '#EFF6FF' }}
+            >
+              📥 Import (.xlsx)
+            </button>
             <button 
               className="btn-secondary" 
               onClick={handleLogout}
@@ -361,6 +406,75 @@ export default function App() {
       </main>
 
       {toast && <div className="toast">{toast}</div>}
+
+      {/* Import Excel Modal */}
+      {showImportModal && (
+        <div className="modal-overlay" onClick={() => !importing && setShowImportModal(false)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: '#1e1e2e', borderRadius: '16px', padding: '32px', maxWidth: '480px', width: '90%',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.08)'
+          }}>
+            <h2 style={{ margin: '0 0 8px', fontSize: '20px', color: '#e0e0e0' }}>
+              📥 Import Excel Report
+            </h2>
+            <p style={{ margin: '0 0 24px', fontSize: '13px', color: '#888' }}>
+              {activeProfileId === 'family' || !activeProfileId
+                ? 'Upload a Family Household Master Report to create/update all profiles and their data.'
+                : 'Upload an Excel report to add data into the current profile.'}
+            </p>
+
+            <div
+              onDragOver={e => { e.preventDefault(); setImportDragOver(true); }}
+              onDragLeave={() => setImportDragOver(false)}
+              onDrop={e => { e.preventDefault(); setImportDragOver(false); handleImportFile(e.dataTransfer.files[0]); }}
+              onClick={() => !importing && importFileRef.current?.click()}
+              style={{
+                border: `2px dashed ${importDragOver ? '#6366f1' : 'rgba(255,255,255,0.15)'}`,
+                borderRadius: '12px', padding: '48px 24px', textAlign: 'center',
+                cursor: importing ? 'wait' : 'pointer', transition: 'all 0.2s',
+                background: importDragOver ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.02)'
+              }}
+            >
+              {importing ? (
+                <>
+                  <div style={{ fontSize: '36px', marginBottom: '12px' }}>⏳</div>
+                  <p style={{ color: '#a78bfa', fontSize: '14px', margin: 0 }}>Importing data...</p>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: '36px', marginBottom: '12px' }}>📁</div>
+                  <p style={{ color: '#aaa', fontSize: '14px', margin: '0 0 4px' }}>Drag & drop your <strong>.xlsx</strong> file here</p>
+                  <p style={{ color: '#666', fontSize: '12px', margin: 0 }}>or click to browse</p>
+                </>
+              )}
+            </div>
+
+            <input
+              ref={importFileRef}
+              type="file"
+              accept=".xlsx"
+              style={{ display: 'none' }}
+              onChange={e => handleImportFile(e.target.files[0])}
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
+              <button
+                onClick={() => setShowImportModal(false)}
+                disabled={importing}
+                style={{
+                  padding: '8px 20px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'transparent', color: '#888', cursor: 'pointer', fontSize: '13px'
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

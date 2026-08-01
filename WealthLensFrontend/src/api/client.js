@@ -99,6 +99,32 @@ export const api = {
     a.remove();
     window.URL.revokeObjectURL(url);
   },
+
+  importFamilyExcel: async (file) => {
+    const token = localStorage.getItem('wealthlens_token');
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch(`${BASE}/api/family/import-excel`, { method: 'POST', headers, body: formData });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+  importExcel: async (profileId, file) => {
+    const token = localStorage.getItem('wealthlens_token');
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch(`${BASE}/api/profiles/${profileId}/import-excel`, { method: 'POST', headers, body: formData });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
 };
 
 export function fmt(value, currency = 'INR') {

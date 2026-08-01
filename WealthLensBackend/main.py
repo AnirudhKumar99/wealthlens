@@ -1,6 +1,6 @@
 import uuid
 from typing import Optional
-from fastapi import FastAPI, HTTPException, Header, Query
+from fastapi import FastAPI, HTTPException, Header, Query, UploadFile, File
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from models import ProfileModel, AssetItem, GoalItem, SipItem, InsurancePlanItem, LoanItem, UserRegisterModel, UserLoginModel
@@ -14,6 +14,7 @@ from database import (
 from auth import hash_password, verify_password, create_access_token, decode_access_token
 from calculations import run_simulation
 from excel_exporter import generate_financial_excel_report, generate_family_financial_excel_report
+from excel_importer import import_family_excel, import_single_profile_excel
 
 app = FastAPI(title="WealthLens API 2.0 (Multi-Profile)")
 
@@ -552,3 +553,47 @@ def api_export_family_excel(token: Optional[str] = Query(None), authorization: O
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+
+# --- Excel Import ---
+@app.post("/api/family/import-excel")
+async def api_import_family_excel(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    uid = get_user_id_from_header(authorization)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    if not file.filename.endswith('.xlsx'):
+        raise HTTPException(status_code=400, detail="Only .xlsx files are supported")
+
+    file_bytes = await file.read()
+    try:
+        counts = import_family_excel(uid, file_bytes)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse Excel file: {str(e)}")
+
+    return {
+        "status": "success",
+        "message": f"Successfully imported {counts['assets']} assets, {counts['sips']} SIPs, {counts['goals']} goals, {counts['loans']} loans, {counts['insurance']} insurance plans across {counts['profiles']} profiles.",
+        "counts": counts
+    }
+
+
+@app.post("/api/profiles/{profile_id}/import-excel")
+async def api_import_profile_excel(profile_id: str, file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    uid = get_user_id_from_header(authorization)
+    profile = verify_user_profile_access(profile_id, uid)
+
+    if not file.filename.endswith('.xlsx'):
+        raise HTTPException(status_code=400, detail="Only .xlsx files are supported")
+
+    file_bytes = await file.read()
+    try:
+        counts = import_single_profile_excel(profile_id, file_bytes)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse Excel file: {str(e)}")
+
+    return {
+        "status": "success",
+        "message": f"Successfully imported {counts['assets']} assets, {counts['sips']} SIPs, {counts['goals']} goals, {counts['loans']} loans, {counts['insurance']} insurance plans into {profile.get('family_name', 'profile')}.",
+        "counts": counts
+    }
