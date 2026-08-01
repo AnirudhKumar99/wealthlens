@@ -274,8 +274,8 @@ export default function App() {
     switch (activeTab) {
       case 'dashboard': 
         component = isFamilyMode 
-          ? <FamilyDashboard familyData={familyData} onSelectProfile={setActiveProfileId} />
-          : <Dashboard simulation={simulation} />; 
+          ? <FamilyDashboard familyData={familyData} onSelectProfile={setActiveProfileId} onOpenImport={() => setShowImportModal(true)} />
+          : <Dashboard simulation={simulation} onOpenImport={() => setShowImportModal(true)} />; 
         break;
       case 'profile': 
         component = <Profile profileId={effectiveProfileId} showToast={(msg) => triggerSimulationUpdate(msg)} onProfileDeleted={loadProfiles} />; 

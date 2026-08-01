@@ -2,14 +2,21 @@ import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Brush } from 'recharts';
 import { fmt, fmtShort } from '../api/client';
 
-export default function Dashboard({ simulation }) {
+export default function Dashboard({ simulation, onOpenImport }) {
   if (!simulation) {
     return (
       <div className="clay-card card-lavender empty-state animate-fade-in-up" style={{ padding: '40px 24px', textAlign: 'center' }}>
         <div className="empty-icon">🔮</div>
         <div className="section-title" style={{justifyContent: 'center', fontSize: '22px'}}>Welcome to Your Wealth Snapshot!</div>
-        <p style={{fontSize: '14px', color: '#6B5B95', maxWidth: '480px', margin: '0 auto'}}>Add your assets, goals, SIPs, and investments to generate your personalized lifetime wealth trajectory.</p>
-        <p style={{marginTop: '12px', fontSize: '13px', color: '#7C3AED', fontWeight: 700}}>⚡ Real-Time Auto-Analytics — all charts & health metrics update automatically as you edit.</p>
+        <p style={{fontSize: '14px', color: '#6B5B95', maxWidth: '480px', margin: '0 auto'}}>Add your assets, goals, SIPs, and investments or upload an Excel report to generate your personalized lifetime wealth trajectory.</p>
+        <div style={{ marginTop: '18px', display: 'flex', justifyContent: 'center', gap: '12px' }}>
+          {onOpenImport && (
+            <button className="btn-primary" onClick={onOpenImport} style={{ background: 'linear-gradient(135deg, #2563EB, #3B82F6)' }}>
+              📥 Import Excel (.xlsx)
+            </button>
+          )}
+        </div>
+        <p style={{marginTop: '16px', fontSize: '13px', color: '#7C3AED', fontWeight: 700}}>⚡ Real-Time Auto-Analytics — all charts & health metrics update automatically as you edit.</p>
       </div>
     );
   }

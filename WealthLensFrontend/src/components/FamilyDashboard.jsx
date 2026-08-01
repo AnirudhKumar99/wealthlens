@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Brush } from 'recharts';
 import { fmt, fmtShort } from '../api/client';
 
-export default function FamilyDashboard({ familyData, onSelectProfile }) {
+export default function FamilyDashboard({ familyData, onSelectProfile, onOpenImport }) {
   const [chartType, setChartType] = useState('area'); // 'area' or 'line'
 
   if (!familyData || !familyData.kpis) {
@@ -93,8 +93,19 @@ export default function FamilyDashboard({ familyData, onSelectProfile }) {
         <h2 className="section-title" style={{ margin: 0 }}>
           <span className="title-icon">🏠</span> Family Household Hub
         </h2>
-        <div className="badge badge-equity" style={{ fontSize: '13px', padding: '6px 14px' }}>
-          👨‍👩‍👧‍👦 {kpis.total_members || 0} Family Members Linked
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {onOpenImport && (
+            <button 
+              className="btn-secondary" 
+              onClick={onOpenImport}
+              style={{ borderRadius: '50px', padding: '6px 16px', fontSize: '12px', border: '1.5px solid #93C5FD', color: '#2563EB', background: '#EFF6FF', fontWeight: 800 }}
+            >
+              📥 Import Excel (.xlsx)
+            </button>
+          )}
+          <div className="badge badge-equity" style={{ fontSize: '13px', padding: '6px 14px' }}>
+            👨‍👩‍👧‍👦 {kpis.total_members || 0} Family Members Linked
+          </div>
         </div>
       </div>
 
