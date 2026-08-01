@@ -74,7 +74,26 @@ export const api = {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `WealthLens_Financial_Report.xlsx`;
+    a.download = `WealthLens_Profile_Report.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
+  exportFamilyExcel: async () => {
+    const token = localStorage.getItem('wealthlens_token');
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(`${BASE}/api/family/export-excel`, { method: 'GET', headers });
+    if (!res.ok) throw new Error(await res.text());
+    
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `WealthLens_Household_Master_Report.xlsx`;
     document.body.appendChild(a);
     a.click();
     a.remove();

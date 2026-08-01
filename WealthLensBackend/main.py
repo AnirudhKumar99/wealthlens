@@ -13,7 +13,7 @@ from database import (
 )
 from auth import hash_password, verify_password, create_access_token, decode_access_token
 from calculations import run_simulation
-from excel_exporter import generate_financial_excel_report
+from excel_exporter import generate_financial_excel_report, generate_family_financial_excel_report
 
 app = FastAPI(title="WealthLens API 2.0 (Multi-Profile)")
 
@@ -425,6 +425,127 @@ def api_export_excel(profile_id: str, token: Optional[str] = Query(None), author
 
     family_slug = (profile.get("family_name") or "Family").replace(" ", "_")
     filename = f"WealthLens_Report_{family_slug}.xlsx"
+
+    return Response(
+        content=excel_stream.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@app.get("/api/family/export-excel")
+def api_export_family_excel(token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
+    uid = get_user_id_from_header(authorization)
+    if not uid and token:
+        payload = decode_access_token(token)
+        if payload:
+            uid = payload.get("sub")
+
+    if not uid:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    summary = get_family_summary_data(uid)
+    profiles = summary["profiles"]
+    combined_assets = summary["combined_assets"]
+    combined_goals = summary["combined_goals"]
+    combined_sips = summary["combined_sips"]
+    combined_insurance = summary["combined_insurance"]
+    combined_loans = summary["combined_loans"]
+
+    member_cards = []
+    total_assets_val = sum(float(a.get("value", 0)) for a in combined_assets)
+    total_debt_val = sum(float(l.get("principal", 0)) for l in combined_loans)
+    total_monthly_sip = sum(float(s.get("monthly_amount", 0)) for s in combined_sips)
+    net_worth = total_assets_val - total_debt_val
+
+    alloc = {"equity": 0.0, "debt": 0.0, "hybrid": 0.0, "gold": 0.0, "real_estate": 0.0, "other": 0.0}
+    for a in combined_assets:
+        ac = a.get("asset_class", "other")
+        alloc[ac] = alloc.get(ac, 0.0) + float(a.get("value", 0))
+
+    profile_sims = {}
+    health_scores = []
+    all_years = set()
+
+    for p in profiles:
+        pid = p["id"]
+        pname = p.get("family_name", "Member")
+        p_assets = [a for a in combined_assets if a.get("profile_id") == pid]
+        p_goals = [g for g in combined_goals if g.get("profile_id") == pid]
+        p_sips = [s for s in combined_sips if s.get("profile_id") == pid]
+        p_insurance = [i for i in combined_insurance if i.get("profile_id") == pid]
+        p_loans = [l for l in combined_loans if l.get("profile_id") == pid]
+        
+        sim = run_simulation(p, p_assets, p_goals, p_sips, p_insurance, p_loans)
+        score = sim.get("health_score", 70)
+        health_scores.append(score)
+        
+        p_val = sum(float(a.get("value", 0)) for a in p_assets)
+        p_sip = sum(float(s.get("monthly_amount", 0)) for s in p_sips)
+        
+        member_cards.append({
+            "id": pid,
+            "name": pname,
+            "role": p.get("role", "Family Member"),
+            "portfolio_value": p_val,
+            "monthly_sip": p_sip,
+            "asset_count": len(p_assets),
+            "goal_count": len(p_goals),
+            "health_score": score,
+            "current_age": p.get("current_age", 35),
+            "retirement_age": p.get("retirement_age", 60)
+        })
+
+        y_map = {}
+        for yd in sim.get("yearly_data", []):
+            yr = yd.get("year")
+            val = float(yd.get("portfolio_value", 0))
+            y_map[yr] = val
+            all_years.add(yr)
+        profile_sims[pname] = y_map
+
+    sorted_years = sorted(list(all_years))
+    yearly_trajectory = []
+
+    for yr in sorted_years:
+        entry = {"year": yr, "family_total": 0.0}
+        fam_tot = 0.0
+        for p in profiles:
+            pname = p.get("family_name", "Member")
+            val = profile_sims.get(pname, {}).get(yr, 0.0)
+            entry[pname] = val
+            fam_tot += val
+        entry["family_total"] = fam_tot
+        yearly_trajectory.append(entry)
+
+    avg_health_score = int(sum(health_scores) / len(health_scores)) if health_scores else 75
+
+    fam_data = {
+        "kpis": {
+            "net_worth": net_worth,
+            "total_assets": total_assets_val,
+            "total_debt": total_debt_val,
+            "monthly_sip": total_monthly_sip,
+            "health_score": avg_health_score,
+            "total_members": len(profiles),
+            "total_assets_count": len(combined_assets),
+            "total_goals_count": len(combined_goals),
+            "total_sips_count": len(combined_sips),
+            "total_insurance_count": len(combined_insurance),
+            "total_loans_count": len(combined_loans)
+        },
+        "allocation": alloc,
+        "member_cards": member_cards,
+        "yearly_trajectory": yearly_trajectory,
+        "combined_assets": combined_assets,
+        "combined_goals": combined_goals,
+        "combined_sips": combined_sips,
+        "combined_insurance": combined_insurance,
+        "combined_loans": combined_loans
+    }
+
+    excel_stream = generate_family_financial_excel_report(fam_data)
+    filename = "WealthLens_Household_Master_Report.xlsx"
 
     return Response(
         content=excel_stream.getvalue(),

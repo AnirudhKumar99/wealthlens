@@ -171,12 +171,17 @@ export default function App() {
   };
 
   const handleExportExcel = async () => {
-    const targetId = activeProfileId === 'family' ? profiles[0]?.id : activeProfileId;
-    if (!targetId) return;
+    if (!activeProfileId) return;
     try {
-      showToast('⏳ Generating report...');
-      await api.exportExcel(targetId);
-    } catch {
+      showToast('⏳ Generating Excel report...');
+      if (activeProfileId === 'family') {
+        await api.exportFamilyExcel();
+      } else {
+        await api.exportExcel(activeProfileId);
+      }
+      showToast('✅ Report downloaded!');
+    } catch (e) {
+      console.error(e);
       showToast('❌ Export failed');
     }
   };
